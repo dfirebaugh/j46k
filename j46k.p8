@@ -8,22 +8,31 @@ __lua__
 --[[const]] startx = 1
 --[[const]] starty = 1
 --[[const]] wall=7
---[[const]] floor=8
+--[[const]] floor=9
+--[[const]] sfx_enabled=0
 -- music(0)
 
 function _init()
   -- init_actors()
   -- fill the map with walls
   fillmap()
+  dig(startx, starty)
+
   -- set start position
   mset(startx,starty,floor)
-  digagent(startx, starty)
+  mset(startx+1, starty, floor)
+  mset(startx, starty+1, floor)
+  mset(startx+1, starty+1, floor)
+
+
   init_player()
 end
 
 function _update()
-  -- control_player(jon)
-  -- foreach(actor, move_actor)
+  control_player(jon)
+  foreach(actor, move_actor)
+
+  camera(jon.x, jon.y)
 end
 
 function _draw()
@@ -31,14 +40,14 @@ function _draw()
   map(0,0)
 
   -- draw actors
-  -- foreach(actor,draw_actor)
+  foreach(actor,draw_actor)
 
   print("floors: "..floorcount, 0, 112, 7)
   print("iterations: "..iterations, 0, 100, 7)
 
   -- log jon's coordinates
-  -- print("x "..jon.x,0,120,7)
-  -- print("y "..jon.y,64,120,7)
+  print("x "..jon.x,0,120,7)
+  print("y "..jon.y,64,120,7)
 end
 
 
@@ -123,7 +132,7 @@ function move_actor(a)
     else   
     -- otherwise bounce
     a.dx *= -a.bounce
-    sfx(9)
+    if (sfx_enabled == 1) sfx(9)
     end
 
     -- ditto for y
@@ -132,7 +141,7 @@ function move_actor(a)
     a.y += a.dy
   else
     a.dy *= -a.bounce
-    sfx(9)
+    if (sfx_enabled == 1) sfx(9)
   end
 
   -- apply inertia
@@ -234,20 +243,7 @@ function draw_actor(a)
   local sx = (a.x * 8) - 4
   local sy = (a.y * 8) - 4
 
-  if(should_animate(a)) print("should animate: ", 0, 20, 7)
-
-  if (should_animate(a)) a.frame %= a.frames
   spr(a.spr + a.frame, sx, sy)
-end
-
-function should_animate(a)
-  -- grab the cell value
-  val=mget(a.x, a.y)
-
-  -- check if flag 1 is set (the
-  -- orange toggle button in the 
-  -- sprite editor)
-  return fget(val, 1)
 end
 
 -->8
@@ -255,7 +251,7 @@ end
 
 function init_player()
   -- jon
-  jon = make_actor(startx, starty)
+  jon = make_actor(startx+1, starty+1)
   jon.spr = 0
 end
 
@@ -273,7 +269,8 @@ function control_player(pl)
 
   if (abs(pl.dx)+abs(pl.dy) > 0.1
       and (pl.t%4) == 0) then
-    sfx(9)
+    if (sfx_enabled == 1) sfx(9)
+
   end
 end
 -->8
@@ -289,63 +286,56 @@ function fillmap()
  end
 end
 
--- digagent digs determines which 
---   map cells to dig out
-function digagent(x, y)
-  local digcount = 0
-
-  dig(x, y)
-end
-
 -- picks a random direction and 
 --   returns a new position {x, y}
+--   returns false if no good options in adjacent cells
 function newdirection(x, y)
-  local dir = rnd(100) + 0 -- random direction left, right or up, down
-  local axis = rnd(100) + 0 -- randome axis 0 or 1
-  local next = {x = x, y = y}
+  local inc = 1
 
-  if (axis > 50) then -- x
-    if (dir > 50) then -- left
-      next.x -= 1
-      return next
-    else -- right
-      next.x += 1
-      return next
+  local possibledirections = {
+    {x = x+inc, y = y}, -- right
+    {x = x-inc, y = y}, -- left
+    {x = x, y = y-inc}, -- up
+    {x = x, y = y+inc}, -- down
+  }
+  local rnddir= flr(rnd(count(possibledirections))+1)
+
+  for j=0, 4 do
+    -- try all 4 possible directions
+    for i=0, 4 do
+      if(iswithinmap(
+          possibledirections[rnddir+i % count(possibledirections)].x, 
+          possibledirections[rnddir+i % count(possibledirections)].y) and 
+          possibledirections[rnddir+i % count(possibledirections)] != floor) then
+        return possibledirections[rnddir+i % count(possibledirections)]
+      end
     end
-  else -- y
-    if (dir > 50) then -- up
-      next.y -= 1
-      return next
-    else -- down
-      next.y += 1
-      return next
-    end
+    inc += 1
   end
+
+  -- if we don't get a good option return false
+  return false
 end
 
 -- dig takes a position and based on that it will 
 --   place floors instead of walls
 function dig(x, y)
   local next = newdirection(x, y)
+  if (next == false) return
+
   local nexttile = mget(next.x, next.y)
-  
+
   iterations += 1
   -- base condition: if floor 
   --  count is greater than 
   --  predetermined set value, 
   --  break the loop
-  if (floorcount > (mapsize / 2)) then
+  if (iterations == 2000) then
     return
   else -- else dig out a floor
-    if (not iswithinmap(next.x, next.y)) then
-      -- dig, but pass in move toward center
-      towardcenter = movetowardcenter(x, y)
-      dig(towardcenter.x, towardcenter.y)
-    else -- dig the next position
-      if (nexttile == wall) floorcount += 1 -- keep a count of how many floor tiles we've placed
-      mset(next.x, next.y, floor) -- set a floor tile
-      dig(next.x, next.y)
-    end
+    floorcount += 1 -- keep a count of how many floor tiles we've placed
+    mset(next.x, next.y, floor) -- set a floor tile
+    dig(next.x, next.y)
   end
 end
 
@@ -359,9 +349,11 @@ function movetowardcenter(x, y)
 end
 
 function iswithinmap(x, y)
-	if (x < 100 and y < 100 and (x != 0 or y != 0)) return true
+  if (y == 0 or x == 0) return false
 
-  return false
+  if (x >= mapsize or y >= mapsize) return false
+
+  return true
 end
 
 __gfx__
