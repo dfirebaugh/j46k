@@ -4,16 +4,27 @@ __lua__
 -- j46k
 -- by dfire
 
+--[[const]] debug = 1
+
 --[[const]] mapsize = 64
 --[[const]] startx = 1
 --[[const]] starty = 1
 --[[const]] wall=7
 --[[const]] floor=9
 --[[const]] sfx_enabled=0
+
+-- spawn chances
+--[[const]] lady_spawn_chance = 2
+--[[const]] spider_spawn_chance = 2
+--[[const]] tsnow_spawn_chance = 6
+
+
 -- music(0)
+cam_x = 0
+cam_y = 0
 
 function _init()
-  -- init_actors()
+  
   -- fill the map with walls
   fillmap()
   dig(startx, starty)
@@ -24,33 +35,36 @@ function _init()
   mset(startx, starty+1, floor)
   mset(startx+1, starty+1, floor)
 
-
+  init_actors()
   init_player()
 end
 
 function _update()
   control_player(jon)
   foreach(actor, move_actor)
-
-  camera(jon.x, jon.y)
 end
 
 function _draw()
   cls()
+  camera(cam_x, cam_y)
+
+
   map(0,0)
 
   -- draw actors
   foreach(actor,draw_actor)
 
-  print("floors: "..floorcount, 0, 112, 7)
-  print("iterations: "..iterations, 0, 100, 7)
-
-  -- log jon's coordinates
-  print("x "..jon.x,0,120,7)
-  print("y "..jon.y,64,120,7)
+  if (debug == 1) then
+    print("floors: "..floorcount, 0, 112, 7)
+    print("iterations: "..iterations, 0, 100, 7)
+    -- log jon's coordinates
+    print("x "..jon.x,0,120,7)
+    print("y "..jon.y,64,120,7)
+    print('('..cam_x..', '..cam_y..')', 0, 0, 7)
+  end
+  -- camera(jon.dx, jon.dy)
+  camera()
 end
-
-
 
 -->8
 -- actor
@@ -59,37 +73,25 @@ actor = {} --all actors in world
 -- init_actors
 -- initializes starting actors
 function init_actors()
-  heart = make_actor(9, 9)
-  heart.spr = 16
-  heart.dx=0.05
-  heart.dy=-0.1
-  heart.inertia=0.5
+  -- iterate through the map and place actors
+  for i=0, mapsize do
+    for j=0, mapsize do
+      local tile = mget(i,j)
+      if (tile == floor and check_neighbors(i, j)) then
+        if (rnd(100)+1 < spider_spawn_chance) then
+          place_spider(i, j)
+        end
 
-  tsnow = make_actor(12, 12)
-  tsnow.spr = 32
-  tsnow.dx=0.05
-  tsnow.dy=-0.1
-  tsnow.inertia=0.5
+        if (rnd(100)+1 < lady_spawn_chance) then
+          place_lady(i, j)
+        end
 
-  lady = make_actor(12, 2)
-  lady.spr = 48
-  lady.dx=0.05
-  lady.dy=-0.1
-  lady.inertia=0.5
-  lady.name = "lady"
-
-  aibit = make_actor(8, 12)
-  aibit.spr = 20
-  aibit.dx=0.05
-  aibit.dy=-0.1
-  aibit.inertia=0.5
-
-
-  a = make_actor(7,5)
-  a.spr=5
-  a.frames=4
-  a.dx=1/8
-  a.inertia=0.8
+        if (rnd(100)+1 < tsnow_spawn_chance) then
+          place_tsnow(i, j)
+        end
+      end
+    end
+  end
 end
 
 -- make an actor
@@ -100,8 +102,10 @@ function make_actor(x, y)
   a={}
   a.x = x
   a.y = y
-  a.dx = 0
-  a.dy = 0
+  a.spritesize = 1
+  a.dx=0.05
+  a.dy=-0.1
+  a.inertia=0.5
   a.spr = 16
   a.frame = 0
   a.t = 0
@@ -126,17 +130,15 @@ function move_actor(a)
   -- if the resulting position
   -- will not overlap with a wall
 
-    if not solid_a(a, a.dx, 0) 
-    then
+  if not solid_a(a, a.dx, 0) then
     a.x += a.dx
-    else   
+  else   
     -- otherwise bounce
     a.dx *= -a.bounce
     if (sfx_enabled == 1) sfx(9)
-    end
+  end
 
     -- ditto for y
-
   if not solid_a(a, 0, a.dy) then
     a.y += a.dy
   else
@@ -162,10 +164,43 @@ function move_actor(a)
   a.t += 1
 end
 
+function place_lady(x, y)
+  lady = make_actor(x, y)
+  lady.spr = 48
+  lady.name = "lady"
+  lady.inertia = 1
+  lady.frames = 3
+end
+
+function place_spider(x, y)
+  spidy = make_actor(x, y)
+  spidy.spritesize = 2
+  spidy.spr = 36
+  spidy.name = "spidy"
+end
+
+function place_aibit(x, y)
+  aibit = make_actor(8, 12)
+  aibit.spr = 20
+end
+
+function place_tsnow(x, y)
+  tsnow = make_actor(x, y)
+  tsnow.spr = 32
+end
+
+function is_attacker(x, y)
+  val=mget(x, y)
+
+  -- check if flag 3 is set (the
+  -- green toggle button in the 
+  -- sprite editor)
+  return fget(val, 3)
+end
+
 -- for any given point on the
 -- map, true if there is wall
 -- there.
-
 function solid(x, y)
   -- grab the cell value
   val=mget(x, y)
@@ -179,10 +214,9 @@ end
 -- solid_area
 -- check if a rectangle overlaps
 -- with any walls
-
+-- 
 --(this version only works for
 --actors less than one tile big)
-
 function solid_area(x,y,w,h)
 
   return 
@@ -243,7 +277,15 @@ function draw_actor(a)
   local sx = (a.x * 8) - 4
   local sy = (a.y * 8) - 4
 
+  if (a.spritesize==1) then
   spr(a.spr + a.frame, sx, sy)
+  end
+
+  
+  if (a.spritesize==2) then
+    frameoffset = flr(a.frame) == 0 and 0 or 16
+    sspr(32+frameoffset,16,16,8,sx,sy)
+  end
 end
 
 -->8
@@ -256,13 +298,32 @@ function init_player()
 end
 
 function control_player(pl)
-
   -- how fast to accelerate
   accel = 0.1
-  if (btn(0)) pl.dx -= accel 
-  if (btn(1)) pl.dx += accel 
-  if (btn(2)) pl.dy -= accel 
-  if (btn(3)) pl.dy += accel 
+  if (btn(0)) then
+    pl.dx -= accel
+  end
+  if (btn(1)) then
+    pl.dx += accel
+  end
+  if (btn(2)) then
+    pl.dy -= accel
+  end
+  if (btn(3)) then
+    pl.dy += accel
+  end
+
+  -- check to see if we need to move the camera
+  if not solid_a(pl, pl.dx, 0) then
+    cam_x += pl.dx
+    print(pl.dx)
+  end
+
+    -- ditto for y
+  if not solid_a(pl, 0, pl.dy) then
+    cam_y += pl.dy
+  end
+
 
   -- play a sound if moving
   -- (every 4 ticks)
@@ -279,8 +340,8 @@ iterations=0
 floorcount=0
 
 function fillmap()
- for i=0,100 do
- 	for j=0,100 do
+ for i=0,mapsize do
+ 	for j=0, mapsize do
  		mset(i,j,wall)
  	end
  end
@@ -297,12 +358,16 @@ function newdirection(x, y)
     {x = x-inc, y = y}, -- left
     {x = x, y = y-inc}, -- up
     {x = x, y = y+inc}, -- down
+    -- {x = x+inc, y = y+inc}, -- diagonal top right
+    -- {x = x+inc, y = y-inc}, -- diagonal bottom right
+    -- {x = x-inc, y = y-inc}, -- diagonal top left
+    -- {x = x-inc, y = y+inc}, -- diagonal bottom left
   }
   local rnddir= flr(rnd(count(possibledirections))+1)
 
   for j=0, 4 do
     -- try all 4 possible directions
-    for i=0, 4 do
+    for i=0, count(possibledirections) do
       if(iswithinmap(
           possibledirections[rnddir+i % count(possibledirections)].x, 
           possibledirections[rnddir+i % count(possibledirections)].y) and 
@@ -356,6 +421,26 @@ function iswithinmap(x, y)
   return true
 end
 
+-- check_neighbors looks at the 
+--   neigboring tiles around a tile
+--   to see if they are floor tiles
+--
+--   returns true if all neighbors are floors
+function check_neighbors(x, y)
+  local neighbors = {
+    {x = x + 1, y = y}, -- right
+    {x = x - 1, y = y}, -- left
+    {x = x, y = y - 1}, -- up
+    {x = x, y = y + 1}, -- down
+  }
+
+  for i = 1, count(neighbors) do
+    if (mget(neighbors[i].x, neighbors[i].y) == wall) return false
+  end
+
+  return true
+end
+
 __gfx__
 1111110001111100011111001111110000000000000000000000000066066666dddddddddddddddd000000000000000000000000000000000000000000000000
 1111111111111111111111111111111100000000000000000000000066066666d0dddddddddddddd000000000000000000000000000000000000000000000000
@@ -373,21 +458,21 @@ ffffff000ffffff00ffffff0ffffff0000000000000000000000000066666066dddddddddddddddd
 00888000008880000088800000000000bbbbbbbbbbbbbbbbbbbbbbbb000000000000000000000000000000000000000000000000000000000000000000000000
 00080000000800000008000000000000606060606060606060606060000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00077000000770000007700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00076770000767700007677000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-0077777000777c700077777000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-07667677077776770766767700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-77777777767677777777777700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-0eeeee000eeeee000eeeee0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-eeeefee0eeeefee0eeeefee000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-ef1ff1e0ef1ff1e0ef1ff1e000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-eeffffe0eeffffe0eeffffe000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-ee2f2e00ee2f2e00ee2f2e0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-0ff2ff00ff2ff00000ff2ff000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-0ef2fe00ef2ef00000fe2fe000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000000000000000000000400000000400000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000000000000000000004040000004040000444000000444000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000000000000000000040004044040004004000404404000400000000000000000000000000000000000000000000000000000000000000000
+00077000000770000007700000000000400400444400400440040044440040040000000000000000000000000000000000000000000000000000000000000000
+00076770000767700007677000000000004040444404040000404044440404000000000000000000000000000000000000000000000000000000000000000000
+0077777000777c700077777000000000040004444440004004000444444000400000000000000000000000000000000000000000000000000000000000000000
+07667677077776770766767700000000400000444400000400400044440004000000000000000000000000000000000000000000000000000000000000000000
+77777777767677777777777700000000000000044000000000000004400000000000000000000000000000000000000000000000000000000000000000000000
+03bb3300033bbb000333bb0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+3bbbfbb0b3bbfbb033bbfbb000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+31ff1fb03f1ff1b03f1f1fb000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+3bffffb03bffffb03bffffb000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+3b2f2b003b2f2b003b2f2b0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0ff2ff0000ff2ff0ff2ff00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0ef2fe0000fe2fe0ef2ef00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00202000002020000020200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 __label__
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
