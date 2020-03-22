@@ -46,7 +46,7 @@ end
 
 function _draw()
   cls()
-  camera(cam_x, cam_y)
+  camera(cam_x^1.5, cam_y^1.5)
 
 
   map(0,0)
@@ -61,6 +61,7 @@ function _draw()
     print("x "..jon.x,0,120,7)
     print("y "..jon.y,64,120,7)
     print('('..cam_x..', '..cam_y..')', 0, 0, 7)
+    print('('..cam_x..', '..cam_y..')', cam_x + 10, cam_y+10, 7)
   end
   -- camera(jon.dx, jon.dy)
   camera()
@@ -281,7 +282,6 @@ function draw_actor(a)
   spr(a.spr + a.frame, sx, sy)
   end
 
-  
   if (a.spritesize==2) then
     frameoffset = flr(a.frame) == 0 and 0 or 16
     sspr(32+frameoffset,16,16,8,sx,sy)
