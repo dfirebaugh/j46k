@@ -4,7 +4,15 @@ __lua__
 -- j46k
 -- by dfire
 
---[[const]] debug = 0
+--[[const]] debug = 1
+
+-- additional_perimeter_checks is used in map generation
+--   it represents how many neighbor tiles to checkout 
+--   starting with the adjacent neighbors then tiles that
+--   are adjacent to those neighbors
+--[[const]] additional_perimeter_checks = 4
+
+--[[const]] dig_iteration_limit = 2000
 
 --[[const]] mapsize = 64
 --[[const]] startx = 1
@@ -92,10 +100,13 @@ function _draw()
   camera(cam_x^1.5, cam_y^1.5)
 
 
-  map(0,0)
+  map(0, 0, 0, 0, 128, 128)
 
   -- draw actors
   foreach(actor,draw_actor)
+
+
+  camera()
 
   if (debug == 1) then
     print("floors: "..floorcount, 0, 112, 7)
@@ -105,8 +116,6 @@ function _draw()
     print("y "..jon.y,64,120,7)
     print('('..cam_x..', '..cam_y..')', 0, 0, 7)
   end
-
-  camera()
   print_game_info()
 end
 
@@ -487,15 +496,9 @@ function control_player(pl)
     pl.dy += accel
   end
 
-  -- check to see if we need to move the camera
-  if flr(prev_x) == flr(pl.x) then
-    cam_x += pl.dx
-  end
-
-    -- ditto for y
-  if flr(prev_y) == flr(pl.y) then
-    cam_y += pl.dy
-  end
+  -- update camera
+    cam_x = pl.x
+    cam_y = pl.y
 
   -- play a sound if moving
   -- (every 4 ticks)
@@ -513,9 +516,9 @@ floorcount=0
 
 function fillmap()
  for i=0,mapsize do
- 	for j=0, mapsize do
- 		mset(i,j,wall)
- 	end
+  for j=0, mapsize do
+    mset(i,j,wall)
+  end
  end
 end
 
@@ -535,16 +538,17 @@ function newdirection(x, y)
     -- {x = x-inc, y = y-inc}, -- diagonal top left
     -- {x = x-inc, y = y+inc}, -- diagonal bottom left
   }
-  local rnddir= flr(rnd(count(possibledirections))+1)
+  local rnddir= flr(rnd(count(possibledirections)))
 
-  for j=0, 4 do
+  for j=0, additional_perimeter_checks do
     -- try all 4 possible directions
     for i=0, count(possibledirections) do
-      if(iswithinmap(
-          possibledirections[rnddir+i % count(possibledirections)].x, 
-          possibledirections[rnddir+i % count(possibledirections)].y) and 
-          possibledirections[rnddir+i % count(possibledirections)] != floor) then
-        return possibledirections[rnddir+i % count(possibledirections)]
+      rdir = (rnddir+i % count(possibledirections))+1
+      if(is_within_map(
+          possibledirections[rdir].x, 
+          possibledirections[rdir].y) and 
+          possibledirections[rdir] != floor) then
+        return possibledirections[rdir]
       end
     end
     inc += 1
@@ -567,7 +571,7 @@ function dig(x, y)
   --  count is greater than 
   --  predetermined set value, 
   --  break the loop
-  if (iterations == 2000) then
+  if (iterations == dig_iteration_limit) then
     return
   else -- else dig out a floor
     floorcount += 1 -- keep a count of how many floor tiles we've placed
@@ -576,16 +580,7 @@ function dig(x, y)
   end
 end
 
--- returns next position that should 
---   be toward the center
-function movetowardcenter(x, y)
-  return { 
-    x = x < ((mapsize/mapsize) / 2) and x + 1 or x - 1,
-    y = y < ((mapsize/mapsize) / 2) and y + 1 or y - 1
-  }
-end
-
-function iswithinmap(x, y)
+function is_within_map(x, y)
   if (y == 0 or x == 0) return false
 
   if (x >= mapsize or y >= mapsize) return false
@@ -632,12 +627,12 @@ ffffff000ffffff00ffffff0ffffff0000000000000000000000000066666066dddddddddddddddd
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000400000000400000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000004040000004040000444000000444000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000040004044040004004000404404000400000000000000000000000000000000000000000000000000000000000000000
-00077000000770000007700000000000400400444400400440040044440040040000000000000000000000000000000000000000000000000000000000000000
-00076770000767700007677000000000004040444404040000404044440404000000000000000000000000000000000000000000000000000000000000000000
-0077777000777c700077777000000000040004444440004004000444444000400000000000000000000000000000000000000000000000000000000000000000
-07667677077776770766767700000000400000444400000400400044440004000000000000000000000000000000000000000000000000000000000000000000
-77777777767677777777777700000000000000044000000000000004400000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000000000000000000040004011040004004000401104000400000000000000000000000000000000000000000000000000000000000000000
+00077000000770000007700000000000400400411400400440040041140040040000000000000000000000000000000000000000000000000000000000000000
+00076770000767700007677000000000004040455404040000404095590404000000000000000000000000000000000000000000000000000000000000000000
+0077777000777c700077777000000000040004588540004004000998899000400000000000000000000000000000000000000000000000000000000000000000
+07667677077776770766767700000000400000844800000400400089980004000000000000000000000000000000000000000000000000000000000000000000
+77777777767677777777777700000000000000088000000000000008800000000000000000000000000000000000000000000000000000000000000000000000
 03bb3300033bbb000333bb0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 3bbbfbb0b3bbfbb033bbfbb000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 31ff1fb03f1ff1b03f1f1fb000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
