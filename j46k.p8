@@ -4,7 +4,7 @@ __lua__
 -- j46k
 -- by dfire
 
---[[const]] debug = 1
+--[[const]] debug = 0
 
 --[[const]] mapsize = 64
 --[[const]] startx = 1
@@ -17,11 +17,51 @@ __lua__
 --[[const]] lady_spawn_chance = 2
 --[[const]] spider_spawn_chance = 2
 --[[const]] tsnow_spawn_chance = 6
+--[[const]] aibit_spawn_chance = 4
 
+-- sprites
+--[[const]] tsnow_sprite = 32
+--[[const]] lady_sprite = 48
+--[[const]] spidy_sprite = 36
+--[[const]] aibit_sprite = 20
+
+--[[const]] lady_attack_modifier = 20
+--[[const]] lady_inertia_cap = 1
+--[[const]] lady_inertia_inc = .1
+--[[const]] lady_bounce = .6
+
+--[[const]] jon_sprite = 0
+--[[const]] jon_attack_modifier = 1
+--[[const]] thunder_power_attack_modifier = 1
+
+-- tsnow_increment is how much
+--  it will increase jon's thunderpower
+--[[const]] tsnow_increment = 10
+--[[const]] spidy_health = 100
 
 -- music(0)
 cam_x = 0
 cam_y = 0
+
+last = 0
+msg_color = 1
+
+function check_for_message()
+  if flr(time()) - last == 2 then
+    gmsg = nil
+  end
+
+  if (gmsg != nil) then
+    rectfill(0, 0, 128, 6, 0)
+    print(gmsg, 5, 0, msg_color)
+  end
+end
+
+function message(msg)
+    last = flr(time())
+    msg_color = (msg_color + 1) % 15 + 1
+    gmsg = msg
+end
 
 function _init()
   
@@ -42,6 +82,9 @@ end
 function _update()
   control_player(jon)
   foreach(actor, move_actor)
+  if time() % 2 == 0 then
+    payday()
+  end
 end
 
 function _draw()
@@ -61,12 +104,18 @@ function _draw()
     print("x "..jon.x,0,120,7)
     print("y "..jon.y,64,120,7)
     print('('..cam_x..', '..cam_y..')', 0, 0, 7)
-    print('('..cam_x..', '..cam_y..')', cam_x + 10, cam_y+10, 7)
   end
-  -- camera(jon.dx, jon.dy)
+
   camera()
+  print_game_info()
 end
 
+function print_game_info()
+  rectfill(0, 110, 128, 128, 0)
+  check_for_message()
+  print("thunder: "..jon.thunder_power.."      cash: "..jon.cash, 10, 122, 10)
+  print("ai_bits: "..jon.aibits, 10, 112, 10)
+end
 -->8
 -- actor
 actor = {} --all actors in world
@@ -80,7 +129,7 @@ function init_actors()
       local tile = mget(i,j)
       if (tile == floor and check_neighbors(i, j)) then
         if (rnd(100)+1 < spider_spawn_chance) then
-          place_spider(i, j)
+          place_spidy(i, j)
         end
 
         if (rnd(100)+1 < lady_spawn_chance) then
@@ -89,6 +138,10 @@ function init_actors()
 
         if (rnd(100)+1 < tsnow_spawn_chance) then
           place_tsnow(i, j)
+        end
+
+        if (rnd(100)+1 < aibit_spawn_chance) then
+          place_aibit(i, j)
         end
       end
     end
@@ -104,13 +157,12 @@ function make_actor(x, y)
   a.x = x
   a.y = y
   a.spritesize = 1
-  a.dx=0.05
+  a.dx=1
   a.dy=-0.1
   a.inertia=0.5
   a.spr = 16
   a.frame = 0
   a.t = 0
-  a.inertia = 0.6
   a.bounce  = 1
   a.frames=2
 
@@ -130,10 +182,9 @@ function move_actor(a)
   -- only move actor along x
   -- if the resulting position
   -- will not overlap with a wall
-
   if not solid_a(a, a.dx, 0) then
     a.x += a.dx
-  else   
+  else
     -- otherwise bounce
     a.dx *= -a.bounce
     if (sfx_enabled == 1) sfx(9)
@@ -169,25 +220,27 @@ function place_lady(x, y)
   lady = make_actor(x, y)
   lady.spr = 48
   lady.name = "lady"
-  lady.inertia = 1
+  lady.inertia = .8
+  lady.bounce = lady_bounce
   lady.frames = 3
 end
 
-function place_spider(x, y)
+function place_spidy(x, y)
   spidy = make_actor(x, y)
   spidy.spritesize = 2
   spidy.spr = 36
   spidy.name = "spidy"
+  spidy.health = spidy_health
 end
 
 function place_aibit(x, y)
-  aibit = make_actor(8, 12)
+  aibit = make_actor(x, y)
   aibit.spr = 20
 end
 
 function place_tsnow(x, y)
   tsnow = make_actor(x, y)
-  tsnow.spr = 32
+  tsnow.spr = tsnow_sprite
 end
 
 function is_attacker(x, y)
@@ -197,6 +250,32 @@ function is_attacker(x, y)
   -- green toggle button in the 
   -- sprite editor)
   return fget(val, 3)
+end
+
+
+-- for any given point on the
+-- map, true if it is tsnow
+-- there.
+function is_tsnow(x, y)
+  -- grab the cell value
+  val=mget(x, y)
+
+  -- check if flag 2 is set (the
+  -- orange toggle button in the 
+  -- sprite editor)
+  return fget(val, 2)
+end
+
+-- has_tsnow
+-- check if a rectangle has a 
+-- tsnow tile
+function has_tsnow(x,y,w,h)
+
+  return 
+    is_tsnow(x-w,y-h) or
+    is_tsnow(x+w,y-h) or
+    is_tsnow(x-w,y+h) or
+    is_tsnow(x+w,y+h)
 end
 
 -- for any given point on the
@@ -227,6 +306,78 @@ function solid_area(x,y,w,h)
     solid(x+w,y+h)
 end
 
+function delete_actor(a)
+  for i=1, count(actor) do
+    if (actor[i].x == a.x and actor[i].y == a.y) then
+      del(actor, actor[i])
+      return
+    end
+  end
+end
+
+function handle_ai_bit_collision(a, aibit_actor)
+  if(aibit_actor.spr == aibit_sprite) then
+    if (a.player) then
+      jon.aibits += 1
+      message("picked up aibit")
+    end
+    delete_actor(aibit_actor)
+  end
+end
+
+function handle_tsnow_collision(a, a2)
+    -- if actor collides with some thunder snow
+    if(a2.spr == tsnow_sprite) then
+      -- if actor happens to be a lady
+      if (a.spr == lady_sprite) then
+        if (a.inertia > lady_inertia_cap) then
+        else
+          a.inertia = (a.inertia + lady_inertia_inc)
+        end
+      end
+
+      if (a.spr == jon_sprite) then
+        -- cap thunderpower at 100
+        jon.thunder_power = (jon.thunder_power+tsnow_increment > 100) and 
+          100 or (jon.thunder_power + 10)
+
+        message("picked up some thunder snow!")
+      end
+
+      delete_actor(a2)
+    end
+end
+
+function handle_spidy_collision(a, spidy)
+  if(spidy.spr == spidy_sprite) then
+      -- if actor happens to be a lady
+      if (a.spr == lady_sprite) then
+        a.inertia -= .1
+        -- reduce spidy's health
+        spidy.health -= lady_attack_modifier
+      end
+
+      if (a.spr == jon_sprite) then
+        spidy.health -= jon_attack_modifier + (jon.thunder_power + thunder_power_attack_modifier)
+        message(jon_attack_modifier + (jon.thunder_power + thunder_power_attack_modifier).." dmg to spidy. lost: aibit")
+        if (jon.aibits > 0) then
+          jon.aibits -= 1
+        end
+      end
+
+      if (spidy.health < 0) then
+        delete_actor(spidy)
+      end
+  end
+end
+
+function handle_lady_collision(player_actor, lady_actor)
+  if(lady_actor.spr == lady_sprite and player_actor.spr == jon_sprite) then
+    -- reduce jon's cash
+    jon.cash -= 1
+  end
+end
+
 -- true if a will hit another
 -- actor after moving dx,dy
 function solid_actor(a, dx, dy)
@@ -236,26 +387,37 @@ function solid_actor(a, dx, dy)
     local y=(a.y+dy) - a2.y
     if ((abs(x) < (a.w+a2.w)) and
         (abs(y) < (a.h+a2.h)))
-    then 
-      
+    then
+
       -- moving together?
       -- this allows actors to
       -- overlap initially 
       -- without sticking together    
       if (dx != 0 and abs(x) <
           abs(a.x-a2.x)) then
-      v=a.dx + a2.dy
-      a.dx = v/2
-      a2.dx = v/2
-      return true 
+        v=a.dx + a2.dy
+        a.dx = v/2
+        a2.dx = v/2
+
+        handle_tsnow_collision(a, a2)
+        handle_spidy_collision(a, a2)
+        handle_lady_collision(a, a2)
+        handle_ai_bit_collision(a, a2)
+
+        return true 
       end
-      
+
       if (dy != 0 and abs(y) <
           abs(a.y-a2.y)) then
-      v=a.dy + a2.dy
-      a.dy=v/2
-      a2.dy=v/2
-      return true 
+        v=a.dy + a2.dy
+        a.dy=v/2
+        a2.dy=v/2
+        handle_tsnow_collision(a, a2)
+        handle_spidy_collision(a, a2)
+        handle_lady_collision(a, a2)
+        handle_ai_bit_collision(a, a2)
+
+        return true 
       end
       
       --return true
@@ -295,9 +457,21 @@ function init_player()
   -- jon
   jon = make_actor(startx+1, starty+1)
   jon.spr = 0
+  jon.thunder_power = 1
+  jon.cash = 0
+  jon.frames = 3
+  jon.player = true
+  jon.aibits = 0
+end
+
+function payday()
+  jon.cash += 10
 end
 
 function control_player(pl)
+  local prev_x = pl.x
+  local prev_y = pl.y
+
   -- how fast to accelerate
   accel = 0.1
   if (btn(0)) then
@@ -314,16 +488,14 @@ function control_player(pl)
   end
 
   -- check to see if we need to move the camera
-  if not solid_a(pl, pl.dx, 0) then
+  if flr(prev_x) == flr(pl.x) then
     cam_x += pl.dx
-    print(pl.dx)
   end
 
     -- ditto for y
-  if not solid_a(pl, 0, pl.dy) then
+  if flr(prev_y) == flr(pl.y) then
     cam_y += pl.dy
   end
-
 
   -- play a sound if moving
   -- (every 4 ticks)
@@ -605,7 +777,7 @@ __label__
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 
 __gff__
-0000000000000002000000000000000000000000000000000000000000000000000000000000000000000000000000000606060000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000002000000000000000000000000000000000000000000000000040404000000000000000000000000000606060000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 __sfx__
 0110000000472004620c3400c34318470004311842500415003700c30500375183750c3000c3751f4730c375053720536211540114330c37524555247120c3730a470163521d07522375164120a211220252e315
