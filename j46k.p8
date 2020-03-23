@@ -4,7 +4,7 @@ __lua__
 -- j46k
 -- by dfire
 
---[[const]] debug = 1
+--[[const]] debug = 0
 
 -- additional_perimeter_checks is used in map generation
 --   it represents how many neighbor tiles to checkout 
@@ -33,10 +33,18 @@ __lua__
 --[[const]] spidy_sprite = 36
 --[[const]] aibit_sprite = 20
 
+-- actor ids:
+--[[const]] player_id = 0
+--[[const]] lady_id = 1
+--[[const]] tsnow_id = 2
+--[[const]] aibit_id = 3
+--[[const]] spidy_id = 4
+
 --[[const]] lady_attack_modifier = 20
 --[[const]] lady_inertia_cap = 1
---[[const]] lady_inertia_inc = .1
+--[[const]] lady_inertia_inc = .08
 --[[const]] lady_bounce = .6
+--[[const]] lady_speed = .8
 
 --[[const]] jon_sprite = 0
 --[[const]] jon_attack_modifier = 1
@@ -47,12 +55,23 @@ __lua__
 --[[const]] tsnow_increment = 10
 --[[const]] spidy_health = 100
 
+-- game_states:
+--[[const]] setup_intro_level = 0
+--[[const]] play_intro_level = 1
+--[[const]] setup_first_level = 2
+--[[const]] play_first_level = 3
+
+-- game state:
+game_state = setup_intro_level
+
 -- music(0)
 cam_x = 0
 cam_y = 0
 
 last = 0
 msg_color = 1
+
+
 
 function check_for_message()
   if flr(time()) - last == 2 then
@@ -71,8 +90,72 @@ function message(msg)
     gmsg = msg
 end
 
-function _init()
+function _update()
+  if(game_state == setup_intro_level) then
+    init_intro_level()
+    game_state += 1
+  elseif (game_state == play_intro_level) then
+    update_intro_level()
+  elseif (game_state == setup_first_level) then
+    init_first_level()
+    game_state += 1
+  elseif(game_state == play_first_level) then
+    update_first_level()
+  end
+end
+
+function _draw()
+  cls()
+  if(game_state == play_intro_level) then
+    draw_intro_level()
+  elseif (game_state == setup_first_level) then
+  elseif (game_state == play_first_level) then
+    draw_first_level()
+  end
+end
+
+function init_intro_level()
+  -- draw a room
+  for i = 0, 14 do
+    for j = 0, 15 do
+      mset(i, j, floor)
+    end
+    mset(i, 0, wall)
+    mset(0, i, wall)
+    mset(15, i, wall)
+    mset(i, 15, wall)
+  end
+  mset(15,15, wall)
+  init_player()
+  place_lady(5, 5)
+  place_tsnow(5, 8)
+  place_tsnow(5, 10)
+  place_tsnow(5, 12)
+  place_spidy(5, 14)
+end
+
+function update_intro_level()
+  control_player(jon)
+  foreach(actor, move_actor)
   
+  if(jon.x > 13 and jon.y < 3) then
+    
+    foreach(actor, delete_actor)
+    game_state += 1
+  end
+end
+
+function draw_intro_level()
+  camera(0, 0)
+
+  map(0, 0, 0, 0, 16, 16)
+
+  -- draw actors
+  foreach(actor,draw_actor)
+  print("->skip", 95, 12, 7)
+end
+
+function init_first_level()
   -- fill the map with walls
   fillmap()
   dig(startx, starty)
@@ -83,11 +166,11 @@ function _init()
   mset(startx, starty+1, floor)
   mset(startx+1, starty+1, floor)
 
-  init_actors()
+  init_actors() 
   init_player()
 end
 
-function _update()
+function update_first_level()
   control_player(jon)
   foreach(actor, move_actor)
   if time() % 2 == 0 then
@@ -95,19 +178,16 @@ function _update()
   end
 end
 
-function _draw()
+function draw_first_level()
   cls()
   camera(cam_x^1.5, cam_y^1.5)
-
 
   map(0, 0, 0, 0, 128, 128)
 
   -- draw actors
   foreach(actor,draw_actor)
 
-
-  camera()
-
+  camera() -- resets camera postion to static so we can draw game info
   if (debug == 1) then
     print("floors: "..floorcount, 0, 112, 7)
     print("iterations: "..iterations, 0, 100, 7)
@@ -125,6 +205,7 @@ function print_game_info()
   print("thunder: "..jon.thunder_power.."      cash: "..jon.cash, 10, 122, 10)
   print("ai_bits: "..jon.aibits, 10, 112, 10)
 end
+
 -->8
 -- actor
 actor = {} --all actors in world
@@ -232,6 +313,9 @@ function place_lady(x, y)
   lady.inertia = .8
   lady.bounce = lady_bounce
   lady.frames = 3
+  lady.dx = lady_speed
+  lady.dy = lady_speed
+  lady.actor_id = lady_id
 end
 
 function place_spidy(x, y)
@@ -240,16 +324,19 @@ function place_spidy(x, y)
   spidy.spr = 36
   spidy.name = "spidy"
   spidy.health = spidy_health
+  spidy.actor_id = spidy_id
 end
 
 function place_aibit(x, y)
   aibit = make_actor(x, y)
   aibit.spr = 20
+  aibit.actor_id = aibit_id
 end
 
 function place_tsnow(x, y)
   tsnow = make_actor(x, y)
   tsnow.spr = tsnow_sprite
+  tsnow.actor_id = tsnow_id
 end
 
 function is_attacker(x, y)
@@ -317,7 +404,7 @@ end
 
 function delete_actor(a)
   for i=1, count(actor) do
-    if (actor[i].x == a.x and actor[i].y == a.y) then
+    if (actor[i].x == a.x and actor[i].y == a.y and actor[i].actor_id == a.actor_id) then
       del(actor, actor[i])
       return
     end
@@ -361,7 +448,7 @@ function handle_spidy_collision(a, spidy)
   if(spidy.spr == spidy_sprite) then
       -- if actor happens to be a lady
       if (a.spr == lady_sprite) then
-        a.inertia -= .1
+        -- a.inertia -= .1
         -- reduce spidy's health
         spidy.health -= lady_attack_modifier
       end
@@ -371,6 +458,10 @@ function handle_spidy_collision(a, spidy)
         message(jon_attack_modifier + (jon.thunder_power + thunder_power_attack_modifier).." dmg to spidy. lost: aibit")
         if (jon.aibits > 0) then
           jon.aibits -= 1
+          jon.thunder_power -= 20
+          if (jon.thunder_power < 0) then
+            jon.thunder_power = 0
+          end
         end
       end
 
@@ -471,6 +562,7 @@ function init_player()
   jon.frames = 3
   jon.player = true
   jon.aibits = 0
+  jon.actor_id = 0
 end
 
 function payday()
@@ -634,13 +726,13 @@ ffffff000ffffff00ffffff0ffffff0000000000000000000000000066666066dddddddddddddddd
 07667677077776770766767700000000400000844800000400400089980004000000000000000000000000000000000000000000000000000000000000000000
 77777777767677777777777700000000000000088000000000000008800000000000000000000000000000000000000000000000000000000000000000000000
 03bb3300033bbb000333bb0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-3bbbfbb0b3bbfbb033bbfbb000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+3bbfbbb0b3bbfbb033bbfbb000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 31ff1fb03f1ff1b03f1f1fb000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 3bffffb03bffffb03bffffb000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 3b2f2b003b2f2b003b2f2b0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 0ff2ff0000ff2ff0ff2ff00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 0ef2fe0000fe2fe0ef2ef00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00202000002020000020200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00808000002020000020200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 __label__
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
