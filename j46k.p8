@@ -4,62 +4,64 @@ __lua__
 -- j46k
 -- by dfire
 
---[[const]] debug = 0
+debug = 0
 
 -- additional_perimeter_checks is used in map generation
 --   it represents how many neighbor tiles to checkout 
 --   starting with the adjacent neighbors then tiles that
 --   are adjacent to those neighbors
---[[const]] additional_perimeter_checks = 4
+additional_perimeter_checks = 4
 
---[[const]] dig_iteration_limit = 2000
+dig_iteration_limit = 2000
 
---[[const]] mapsize = 64
---[[const]] startx = 1
---[[const]] starty = 1
---[[const]] wall=7
---[[const]] floor=9
---[[const]] sfx_enabled=0
+mapsize = 64
+startx = 1
+starty = 1
+wall=7
+floor=9
+sfx_enabled=0
 
 -- spawn chances
---[[const]] lady_spawn_chance = 2
---[[const]] spider_spawn_chance = 2
---[[const]] tsnow_spawn_chance = 6
---[[const]] aibit_spawn_chance = 4
+lady_spawn_chance = 2
+spider_spawn_chance = 2
+tsnow_spawn_chance = 6
+aibit_spawn_chance = 4
 
 -- sprites
---[[const]] tsnow_sprite = 32
---[[const]] lady_sprite = 48
---[[const]] spidy_sprite = 36
---[[const]] aibit_sprite = 20
+tsnow_sprite = 32
+lady_sprite = 48
+spidy_sprite = 36
+aibit_sprite = 20
 
 -- actor ids:
---[[const]] player_id = 0
---[[const]] lady_id = 1
---[[const]] tsnow_id = 2
---[[const]] aibit_id = 3
---[[const]] spidy_id = 4
+player_id = 0
+lady_id = 1
+tsnow_id = 2
+aibit_id = 3
+spidy_id = 4
 
---[[const]] lady_attack_modifier = 20
---[[const]] lady_inertia_cap = 1
---[[const]] lady_inertia_inc = .08
---[[const]] lady_bounce = .6
---[[const]] lady_speed = .8
+lady_attack_modifier = 20
+launch_speed = 1.8
+lady_inertia = .8
+lady_inertia_cap = 1
+lady_inertia_inc = 0--.08
+lady_bounce = 1
+lady_speed = 1
 
---[[const]] jon_sprite = 0
---[[const]] jon_attack_modifier = 1
---[[const]] thunder_power_attack_modifier = 1
+jon_sprite = 0
+jon_attack_modifier = 1
+thunder_power_attack_modifier = 1
 
 -- tsnow_increment is how much
 --  it will increase jon's thunderpower
---[[const]] tsnow_increment = 10
---[[const]] spidy_health = 100
+tsnow_increment = 10
+spidy_health = 100
 
 -- game_states:
---[[const]] setup_intro_level = 0
---[[const]] play_intro_level = 1
---[[const]] setup_first_level = 2
---[[const]] play_first_level = 3
+setup_intro_level = 0
+play_intro_level = 1
+setup_first_level = 2
+play_first_level = 3
 
 -- game state:
 game_state = setup_intro_level
@@ -108,6 +110,7 @@ function _draw()
   cls()
   if(game_state == play_intro_level) then
     draw_intro_level()
+    check_for_message()
   elseif (game_state == setup_first_level) then
   elseif (game_state == play_first_level) then
     draw_first_level()
@@ -117,21 +120,23 @@ end
 function init_intro_level()
   -- draw a room
   for i = 0, 14 do
-    for j = 0, 15 do
+    for j = 0, 14 do
       mset(i, j, floor)
     end
     mset(i, 0, wall)
     mset(0, i, wall)
     mset(15, i, wall)
-    mset(i, 15, wall)
+    mset(i, 13, wall)
   end
   mset(15,15, wall)
   init_player()
   place_lady(5, 5)
+  place_lady(5, 10)
+  place_lady(2, 5)
   place_tsnow(5, 8)
   place_tsnow(5, 10)
-  place_tsnow(5, 12)
-  place_spidy(5, 14)
+  place_tsnow(5, 11)
+  place_spidy(10, 12)
 end
 
 function update_intro_level()
@@ -140,8 +145,9 @@ function update_intro_level()
   
   if(jon.x > 13 and jon.y < 3) then
     
-    foreach(actor, delete_actor)
+    -- foreach(actor, delete_actor)
     game_state += 1
+    delete_all_actors()
   end
 end
 
@@ -153,6 +159,7 @@ function draw_intro_level()
   -- draw actors
   foreach(actor,draw_actor)
   print("->skip", 95, 12, 7)
+  draw_game_info()
 end
 
 function init_first_level()
@@ -166,8 +173,9 @@ function init_first_level()
   mset(startx, starty+1, floor)
   mset(startx+1, starty+1, floor)
 
-  init_actors() 
+  init_actors()
   init_player()
+  jon.bandolier = 4
 end
 
 function update_first_level()
@@ -196,14 +204,20 @@ function draw_first_level()
     print("y "..jon.y,64,120,7)
     print('('..cam_x..', '..cam_y..')', 0, 0, 7)
   end
-  print_game_info()
+  draw_game_info()
 end
 
-function print_game_info()
+function draw_game_info()
   rectfill(0, 110, 128, 128, 0)
   check_for_message()
-  print("thunder: "..jon.thunder_power.."      cash: "..jon.cash, 10, 122, 10)
+
+  -- left side
+  print("thunder: "..jon.thunder_power, 10, 122, 10)
   print("ai_bits: "..jon.aibits, 10, 112, 10)
+
+  -- right side
+  print("cash: "..jon.cash, 65, 122, 10)
+  print("bandolier: "..jon.bandolier, 65, 112, 10)
 end
 
 -->8
@@ -220,10 +234,6 @@ function init_actors()
       if (tile == floor and check_neighbors(i, j)) then
         if (rnd(100)+1 < spider_spawn_chance) then
           place_spidy(i, j)
-        end
-
-        if (rnd(100)+1 < lady_spawn_chance) then
-          place_lady(i, j)
         end
 
         if (rnd(100)+1 < tsnow_spawn_chance) then
@@ -263,7 +273,7 @@ function make_actor(x, y)
   a.w = 0.4
   a.h = 0.4
   
-  add(actor,a)
+  add(actor,a)add(actor,a)
 
   return a
 end
@@ -306,16 +316,32 @@ function move_actor(a)
   a.t += 1
 end
 
+function make_lady(x, y)
+  local l = {}
+  l.x = x
+  l.y = y
+  l.spritesize = 1
+  l.frame = 0
+  l.t = 0
+
+  l.w = 0.4
+  l.h = 0.4
+  
+  l.spr = 48
+  l.name = "lady"
+  l.inertia = lady_inertia
+  l.bounce = lady_bounce
+  l.frames = 3
+  l.dx = lady_speed
+  l.dy = lady_speed
+  l.actor_id = lady_id
+  return l
+end
+
 function place_lady(x, y)
-  lady = make_actor(x, y)
-  lady.spr = 48
-  lady.name = "lady"
-  lady.inertia = .8
-  lady.bounce = lady_bounce
-  lady.frames = 3
-  lady.dx = lady_speed
-  lady.dy = lady_speed
-  lady.actor_id = lady_id
+  local lady = make_lady(x, y)
+  
+  add(actor,lady)
 end
 
 function place_spidy(x, y)
@@ -402,6 +428,10 @@ function solid_area(x,y,w,h)
     solid(x+w,y+h)
 end
 
+function delete_all_actors()
+  actor={}
+end
+
 function delete_actor(a)
   for i=1, count(actor) do
     if (actor[i].x == a.x and actor[i].y == a.y and actor[i].actor_id == a.actor_id) then
@@ -471,10 +501,43 @@ function handle_spidy_collision(a, spidy)
   end
 end
 
+function track_with_player(a)
+  if(a.track_jon) then
+    a.x = jon.x
+    a.y = jon.y
+  end
+end
+
+function launch_actor()
+  if(jon.bandolier > 0) then
+    jon.bandolier -= 1
+    local launched_actor = make_lady(jon.x, jon.y)
+    add(actor, launched_actor)
+    launched_actor.dx = 0
+    launched_actor.dy = 0
+
+    if (btn(0)) then
+      launched_actor.dx -= launch_speed
+    end
+    if (btn(1)) then
+      launched_actor.dx += launch_speed
+    end
+    if (btn(2)) then
+      launched_actor.dy -= launch_speed
+    end
+    if (btn(3)) then
+      launched_actor.dy += launch_speed
+    end
+  end
+end
+
 function handle_lady_collision(player_actor, lady_actor)
   if(lady_actor.spr == lady_sprite and player_actor.spr == jon_sprite) then
     -- reduce jon's cash
     jon.cash -= 1
+    delete_actor(lady_actor)
+    -- pickup ladies
+    jon.bandolier += 1
   end
 end
 
@@ -556,6 +619,7 @@ end
 function init_player()
   -- jon
   jon = make_actor(startx+1, starty+1)
+  jon.bandolier = 0
   jon.spr = 0
   jon.thunder_power = 1
   jon.cash = 0
@@ -588,9 +652,11 @@ function control_player(pl)
     pl.dy += accel
   end
 
+  if(btnp(4)) launch_actor()
+
   -- update camera
-    cam_x = pl.x
-    cam_y = pl.y
+  cam_x = pl.x
+  cam_y = pl.y
 
   -- play a sound if moving
   -- (every 4 ticks)
