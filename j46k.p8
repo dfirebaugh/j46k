@@ -22,10 +22,10 @@ floor=9
 sfx_enabled=0
 
 -- spawn chances
-lady_spawn_chance = 2
-spider_spawn_chance = 2
-tsnow_spawn_chance = 6
-aibit_spawn_chance = 4
+lady_spawn_number = 2
+spidy_spawn_number = 2
+tsnow_spawn_number = 8
+aibit_spawn_number = 5
 
 -- sprites
 tsnow_sprite = 32
@@ -47,6 +47,10 @@ lady_inertia_cap = 1
 lady_inertia_inc = 0--.08
 lady_bounce = 1
 lady_speed = 1
+lady_return_rate = .2
+
+spidy_follow_rate = .01
+spidy_aggro_distance = 5
 
 jon_sprite = 0
 jon_attack_modifier = 1
@@ -60,8 +64,8 @@ spidy_health = 100
 -- game_states:
 setup_intro_level = 0
 play_intro_level = 1
-setup_first_level = 2
-play_first_level = 3
+setup_generated_level = 2
+play_generated_level = 3
 
 -- game state:
 game_state = setup_intro_level
@@ -98,11 +102,11 @@ function _update()
     game_state += 1
   elseif (game_state == play_intro_level) then
     update_intro_level()
-  elseif (game_state == setup_first_level) then
-    init_first_level()
+  elseif (game_state == setup_generated_level) then
+    init_generated_level()
     game_state += 1
-  elseif(game_state == play_first_level) then
-    update_first_level()
+  elseif(game_state == play_generated_level) then
+    update_generated_level()
   end
 end
 
@@ -111,9 +115,9 @@ function _draw()
   if(game_state == play_intro_level) then
     draw_intro_level()
     check_for_message()
-  elseif (game_state == setup_first_level) then
-  elseif (game_state == play_first_level) then
-    draw_first_level()
+  elseif (game_state == setup_generated_level) then
+  elseif (game_state == play_generated_level) then
+    draw_generation_level()
   end
 end
 
@@ -162,7 +166,7 @@ function draw_intro_level()
   draw_game_info()
 end
 
-function init_first_level()
+function init_generated_level()
   -- fill the map with walls
   fillmap()
   dig(startx, starty)
@@ -175,10 +179,15 @@ function init_first_level()
 
   init_actors()
   init_player()
-  jon.bandolier = 4
+
+  
+  place_lady(5, 5)
+  place_lady(5, 10)
+  place_lady(2, 5)
+  place_lady(2, 25)
 end
 
-function update_first_level()
+function update_generated_level()
   control_player(jon)
   foreach(actor, move_actor)
   if time() % 2 == 0 then
@@ -186,7 +195,7 @@ function update_first_level()
   end
 end
 
-function draw_first_level()
+function draw_generation_level()
   cls()
   camera(cam_x^1.5, cam_y^1.5)
 
@@ -224,28 +233,42 @@ end
 -- actor
 actor = {} --all actors in world
 
+-- inserts actor to the map
+-- if the cell is already occupied, we try again
+function insert_actor(actor_type)
+  local rndx = rnd(mapsize) + 1
+  local rndy = rnd(mapsize) + 1
+
+  if (mget(rndx, rndy) == floor) then
+    place_actor(rndx, rndy, actor_type)
+    return
+  end
+
+  insert_actor(actor_type)
+end
 -- init_actors
 -- initializes starting actors
 function init_actors()
   -- iterate through the map and place actors
-  for i=0, mapsize do
-    for j=0, mapsize do
-      local tile = mget(i,j)
-      if (tile == floor and check_neighbors(i, j)) then
-        if (rnd(100)+1 < spider_spawn_chance) then
-          place_spidy(i, j)
-        end
-
-        if (rnd(100)+1 < tsnow_spawn_chance) then
-          place_tsnow(i, j)
-        end
-
-        if (rnd(100)+1 < aibit_spawn_chance) then
-          place_aibit(i, j)
-        end
-      end
-    end
+  for i = 0, spidy_spawn_number do
+    insert_actor(spidy_id)
   end
+
+  for i = 0, aibit_spawn_number do
+    insert_actor(aibit_id)
+  end
+
+  for i = 0, tsnow_spawn_number do
+    insert_actor(tsnow_id)
+  end
+end
+
+function place_actor(x, y, actor_type)
+  if (actor_type == spidy_id) place_spidy(x,y)
+
+  if (actor_type == aibit_id) place_aibit(x, y)
+
+  if (actor_type == tsnow_id) place_tsnow(x, y)
 end
 
 -- make an actor
@@ -278,7 +301,47 @@ function make_actor(x, y)
   return a
 end
 
+function move_lady(a)
+  if (jon.x > a.x) then
+    a.x += lady_return_rate
+  end
+  if (jon.x < a.x) then
+    a.x -= lady_return_rate
+  end
+  if (jon.y > a.y) then
+    a.y += lady_return_rate
+  end
+  if (jon.y < a.y) then
+    a.y -= lady_return_rate
+  end
+end
+
+function move_spidy(a)
+  if(abs(jon.x - a.x) < spidy_aggro_distance and 
+     abs(jon.y - a.y) < spidy_aggro_distance) then
+
+    if (jon.x > a.x) then
+      a.dx = spidy_follow_rate
+    end
+    if (jon.x < a.x) then
+      a.dx = -spidy_follow_rate
+    end
+    if (jon.y > a.y) then
+      a.dy = spidy_follow_rate
+    end
+    if (jon.y < a.y) then
+      a.dy = -spidy_follow_rate
+    end
+  else -- move spidy a bit back and forth
+    a.dx += flr(time())%6 < 3  and spidy_follow_rate or -spidy_follow_rate
+  end
+end
 function move_actor(a)
+
+  -- if it's a lady 
+  --   move toward jon
+  if (a.actor_id == lady_id) move_lady(a)
+
   -- only move actor along x
   -- if the resulting position
   -- will not overlap with a wall
@@ -298,6 +361,7 @@ function move_actor(a)
     if (sfx_enabled == 1) sfx(9)
   end
 
+
   -- apply inertia
   -- set dx,dy to zero if you
   -- don't want inertia
@@ -314,6 +378,11 @@ function move_actor(a)
   a.frame %= a.frames
 
   a.t += 1
+
+  -- if it's a spidy
+  --   move the spidy
+  -- note: this happens after collisions
+  if (a.actor_id == spidy_id) move_spidy(a)
 end
 
 function make_lady(x, y)
