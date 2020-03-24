@@ -22,7 +22,7 @@ floor=9
 sfx_enabled=0
 
 -- spawn chances
-lady_spawn_number = 2
+lady_spawn_number = 3
 spidy_spawn_number = 2
 tsnow_spawn_number = 8
 aibit_spawn_number = 5
@@ -55,6 +55,11 @@ spidy_aggro_distance = 5
 jon_sprite = 0
 jon_attack_modifier = 1
 thunder_power_attack_modifier = 1
+-- how fast to accelerate
+jon_accel_rate = 0.1
+jon_accel = 0.1
+thunder_snow_accel_multiplier = 50
+jon_initial_speed = .125
 
 -- tsnow_increment is how much
 --  it will increase jon's thunderpower
@@ -107,6 +112,15 @@ function _update()
     game_state += 1
   elseif(game_state == play_generated_level) then
     update_generated_level()
+  end
+  -- message("last hit: "..flr(time()) - last_hit)
+  if(time() - last_hit > .2 and time() - last_pickup > .2) then
+    reset_colors()
+  end
+
+    jon_accel = jon_initial_speed
+  if (jon.thunder_power > 10) then
+    jon_accel = jon_accel_rate * (jon.thunder_power / thunder_snow_accel_multiplier)
   end
 end
 
@@ -179,12 +193,7 @@ function init_generated_level()
 
   init_actors()
   init_player()
-
-  
-  place_lady(5, 5)
-  place_lady(5, 10)
-  place_lady(2, 5)
-  place_lady(2, 25)
+  jon.thunder_power = 0
 end
 
 function update_generated_level()
@@ -229,6 +238,23 @@ function draw_game_info()
   print("bandolier: "..jon.bandolier, 65, 112, 10)
 end
 
+function reset_colors()
+    pal(1, 1)
+    pal(2, 2)
+    pal(3, 3)
+    pal(4, 4)
+    pal(5, 5)
+    pal(6, 6)
+    pal(7, 7)
+    pal(8, 8)
+    pal(9, 9)
+    pal(10, 10)
+    pal(11, 11)
+    pal(12, 12)
+    pal(13, 13)
+    pal(14, 14)
+    pal(15, 15)
+end
 -->8
 -- actor
 actor = {} --all actors in world
@@ -239,7 +265,7 @@ function insert_actor(actor_type)
   local rndx = rnd(mapsize) + 1
   local rndy = rnd(mapsize) + 1
 
-  if (mget(rndx, rndy) == floor) then
+  if (mget(rndx, rndy) == floor and is_within_map(rndx, rndy)) then
     place_actor(rndx, rndy, actor_type)
     return
   end
@@ -250,16 +276,20 @@ end
 -- initializes starting actors
 function init_actors()
   -- iterate through the map and place actors
-  for i = 0, spidy_spawn_number do
+  for i = 1, spidy_spawn_number do
     insert_actor(spidy_id)
   end
 
-  for i = 0, aibit_spawn_number do
+  for i = 1, aibit_spawn_number do
     insert_actor(aibit_id)
   end
 
-  for i = 0, tsnow_spawn_number do
+  for i = 1, tsnow_spawn_number do
     insert_actor(tsnow_id)
+  end
+
+  for i = 1, lady_spawn_number do
+    insert_actor(lady_id)
   end
 end
 
@@ -269,6 +299,8 @@ function place_actor(x, y, actor_type)
   if (actor_type == aibit_id) place_aibit(x, y)
 
   if (actor_type == tsnow_id) place_tsnow(x, y)
+
+  if (actor_type == lady_id) place_lady(x, y)
 end
 
 -- make an actor
@@ -336,11 +368,23 @@ function move_spidy(a)
     a.dx += flr(time())%6 < 3  and spidy_follow_rate or -spidy_follow_rate
   end
 end
+
+function animate_actor(a)
+  a.frame_inc += .5
+  a.frame_inc %= 1
+  a.frame += a.frame_inc
+  a.frame %= a.frames
+
+  a.t += 1
+end
+
 function move_actor(a)
 
   -- if it's a lady 
   --   move toward jon
   if (a.actor_id == lady_id) move_lady(a)
+
+  if (a.actor_id == tsnow_id) animate_actor(a)
 
   -- only move actor along x
   -- if the resulting position
@@ -432,6 +476,8 @@ function place_tsnow(x, y)
   tsnow = make_actor(x, y)
   tsnow.spr = tsnow_sprite
   tsnow.actor_id = tsnow_id
+  tsnow.frames = 3
+  tsnow.frame_inc = 0
 end
 
 function is_attacker(x, y)
@@ -510,28 +556,36 @@ function delete_actor(a)
   end
 end
 
+last_hit = 0
+function handle_enemy_collide()
+  last_hit = flr(time())
+  pal(13, 8)
+  pal(6, 0)
+end
+
+last_pickup=0
+function handle_item_pickup()
+  last_pickup = time()
+  -- pal(6, 7)
+  pal(15, 7)
+end
+
 function handle_ai_bit_collision(a, aibit_actor)
-  if(aibit_actor.spr == aibit_sprite) then
-    if (a.player) then
+  if(aibit_actor.actor_id == aibit_id) then
+    delete_actor(aibit_actor)
+    if (a.player or a.actor_id == lady_id) then
+      handle_item_pickup()
       jon.aibits += 1
       message("picked up aibit")
     end
-    delete_actor(aibit_actor)
   end
 end
 
 function handle_tsnow_collision(a, a2)
     -- if actor collides with some thunder snow
-    if(a2.spr == tsnow_sprite) then
-      -- if actor happens to be a lady
-      if (a.spr == lady_sprite) then
-        if (a.inertia > lady_inertia_cap) then
-        else
-          a.inertia = (a.inertia + lady_inertia_inc)
-        end
-      end
-
-      if (a.spr == jon_sprite) then
+    if(a2.actor_id == tsnow_id) then
+      if (a.player  or a.actor_id == lady_id) then
+        handle_item_pickup()
         -- cap thunderpower at 100
         jon.thunder_power = (jon.thunder_power+tsnow_increment > 100) and 
           100 or (jon.thunder_power + 10)
@@ -544,15 +598,15 @@ function handle_tsnow_collision(a, a2)
 end
 
 function handle_spidy_collision(a, spidy)
-  if(spidy.spr == spidy_sprite) then
+  if(spidy.actor_id == spidy_id) then
       -- if actor happens to be a lady
-      if (a.spr == lady_sprite) then
-        -- a.inertia -= .1
+      if (a.actor_id == lady_id) then
         -- reduce spidy's health
         spidy.health -= lady_attack_modifier
       end
 
-      if (a.spr == jon_sprite) then
+      if (a.player) then
+        handle_enemy_collide()
         spidy.health -= jon_attack_modifier + (jon.thunder_power + thunder_power_attack_modifier)
         message(jon_attack_modifier + (jon.thunder_power + thunder_power_attack_modifier).." dmg to spidy. lost: aibit")
         if (jon.aibits > 0) then
@@ -706,19 +760,17 @@ function control_player(pl)
   local prev_x = pl.x
   local prev_y = pl.y
 
-  -- how fast to accelerate
-  accel = 0.1
   if (btn(0)) then
-    pl.dx -= accel
+    pl.dx -= jon_accel
   end
   if (btn(1)) then
-    pl.dx += accel
+    pl.dx += jon_accel
   end
   if (btn(2)) then
-    pl.dy -= accel
+    pl.dy -= jon_accel
   end
   if (btn(3)) then
-    pl.dy += accel
+    pl.dy += jon_accel
   end
 
   if(btnp(4)) launch_actor()
