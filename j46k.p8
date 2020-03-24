@@ -57,9 +57,10 @@ jon_attack_modifier = 1
 thunder_power_attack_modifier = 1
 -- how fast to accelerate
 jon_accel_rate = 0.1
-jon_accel = 0.1
-thunder_snow_accel_multiplier = 50
-jon_initial_speed = .125
+jon_accel = 0.125
+thunder_snow_accel_multiplier = 40
+jon_initial_speed = .07
+jon_accel_upper_limit = .15
 
 -- tsnow_increment is how much
 --  it will increase jon's thunderpower
@@ -113,15 +114,20 @@ function _update()
   elseif(game_state == play_generated_level) then
     update_generated_level()
   end
-  -- message("last hit: "..flr(time()) - last_hit)
   if(time() - last_hit > .2 and time() - last_pickup > .2) then
     reset_colors()
   end
 
-    jon_accel = jon_initial_speed
-  if (jon.thunder_power > 10) then
+
+-- todo: fix jon's acceleration
+  if (jon_accel > jon_accel_upper_limit) then
+    jon_accel = jon_accel_upper_limit
+  elseif (jon_accel < jon_accel_upper_limit and jon.thunder_power > 20) then
     jon_accel = jon_accel_rate * (jon.thunder_power / thunder_snow_accel_multiplier)
+  else
+    jon_accel = jon_initial_speed
   end
+  -- message("jon accel: "..jon_accel)
 end
 
 function _draw()
@@ -193,7 +199,6 @@ function init_generated_level()
 
   init_actors()
   init_player()
-  jon.thunder_power = 0
 end
 
 function update_generated_level()
