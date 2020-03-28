@@ -6,15 +6,14 @@ __lua__
 
 debug = 0
 
--- additional_perimeter_checks is used in map generation
---   it represents how many neighbor tiles to checkout 
---   starting with the adjacent neighbors then tiles that
---   are adjacent to those neighbors
-additional_perimeter_checks = 4
+-- additional_direction_tries_max is used in map generation
+--   it represents how many attempts to make whilst
+--   moving toward center
+additional_direction_tries_max = 10
 
 dig_iteration_limit = 2000
 
-mapsize = 64
+mapsize = 48
 startx = 1
 starty = 1
 wall=7
@@ -25,13 +24,14 @@ sfx_enabled=0
 lady_spawn_number = 3
 spidy_spawn_number = 2
 tsnow_spawn_number = 8
-aibit_spawn_number = 5
+aibit_spawn_number = 15
 
 -- sprites
 tsnow_sprite = 32
 lady_sprite = 48
 spidy_sprite = 36
 aibit_sprite = 20
+portal_sprite = 10
 
 -- actor ids:
 player_id = 0
@@ -70,8 +70,10 @@ spidy_health = 100
 -- game_states:
 setup_intro_level = 0
 play_intro_level = 1
-setup_generated_level = 2
-play_generated_level = 3
+setup_open_level = 2
+play_open_level = 3
+setup_generated_level = 4
+play_generated_level = 5
 
 -- game state:
 game_state = setup_intro_level
@@ -83,7 +85,16 @@ cam_y = 0
 last = 0
 msg_color = 1
 
+-- clear the log
+printh("", "log", true)
 
+-- logs to a file called log.p8l
+--   only if debug is not set to zero
+function log(str)
+  if(debug == 0) return
+
+  printh(str, "log")
+end
 
 function check_for_message()
   if flr(time()) - last == 2 then
@@ -102,42 +113,94 @@ function message(msg)
     gmsg = msg
 end
 
-function _update()
-  if(game_state == setup_intro_level) then
-    init_intro_level()
-    game_state += 1
-  elseif (game_state == play_intro_level) then
-    update_intro_level()
-  elseif (game_state == setup_generated_level) then
-    init_generated_level()
-    game_state += 1
-  elseif(game_state == play_generated_level) then
-    update_generated_level()
-  end
-  if(time() - last_hit > .2 and time() - last_pickup > .2) then
-    reset_colors()
-  end
+function advance_game_state()
+  reset_colors()
+  delete_all_actors()
+  game_state += 1
+end
 
+function _update()
+  if(time() - last_hit > .2 and time() - last_pickup > .2) reset_colors()
+
+  if(game_state == setup_intro_level) then
+    advance_game_state()
+    init_intro_level()
+  elseif (game_state == play_intro_level) then
+    if(jon.x > 13 and jon.y < 3) then
+      advance_game_state()
+    end
+    standard_update()
+  elseif (game_state == setup_open_level) then
+    advance_game_state()
+    init_open_level()
+  elseif (game_state == play_open_level) then
+    pal(13, 5)
+    standard_update()
+  -- elseif (game_state == setup_generated_level) then
+  --   advance_game_state()
+  --   init_generated_level()
+  -- elseif(game_state == play_generated_level) then
+  --   standard_update()
+  elseif (game_state == play_open_level+1) then
+    game_state = setup_open_level
+  end
 
 -- todo: fix jon's acceleration
-  if (jon_accel > jon_accel_upper_limit) then
-    jon_accel = jon_accel_upper_limit
-  elseif (jon_accel < jon_accel_upper_limit and jon.thunder_power > 20) then
-    jon_accel = jon_accel_rate * (jon.thunder_power / thunder_snow_accel_multiplier)
-  else
-    jon_accel = jon_initial_speed
-  end
+  -- if (jon_accel > jon_accel_upper_limit) then
+  --   jon_accel = jon_accel_upper_limit
+  -- elseif (jon_accel < jon_accel_upper_limit and jon.thunder_power > 20) then
+  --   jon_accel = jon_accel_rate * (jon.thunder_power / thunder_snow_accel_multiplier)
+  -- else
+  --   jon_accel = jon_initial_speed
+  -- end
   -- message("jon accel: "..jon_accel)
 end
 
 function _draw()
   cls()
   if(game_state == play_intro_level) then
-    draw_intro_level()
-    check_for_message()
-  elseif (game_state == setup_generated_level) then
+    camera(0, 0)
+
+    map(0, 0, 0, 0, 16, 16)
+
+    print("->skip", 95, 12, 7)
+  elseif (game_state == play_open_level) then
+    camera(cam_x^1.5, cam_y^1.5)
+
+    map(0, 0, 0, 0, 128, 128)
   elseif (game_state == play_generated_level) then
-    draw_generation_level()
+    camera(cam_x^1.5, cam_y^1.5)
+
+    map(0, 0, 0, 0, 128, 128)
+  end
+
+  -- draw actors
+  foreach(actor,draw_actor)
+
+  camera() -- resets camera postion to static so we can draw game info
+  print_debug()
+  draw_game_info()
+  -- message("game_state: "..game_state)
+  check_for_message()
+end
+
+function print_debug()
+  if (debug == 0) return
+
+  print("floors: "..count(floors), 0, 90, 7)
+  print("iterations: "..iterations, 0, 100, 7)
+
+  -- log jon's coordinates
+  print("x "..jon.x,0,120,7)
+  print("y "..jon.y,64,120,7)
+  print('('..cam_x..', '..cam_y..')', 0, 0, 7)
+end
+
+function standard_update()
+  control_player(jon)
+  foreach(actor, move_actor)
+  if time() % 2 == 0 then
+    payday()
   end
 end
 
@@ -163,27 +226,50 @@ function init_intro_level()
   place_spidy(10, 12)
 end
 
-function update_intro_level()
-  control_player(jon)
-  foreach(actor, move_actor)
-  
-  if(jon.x > 13 and jon.y < 3) then
-    
-    -- foreach(actor, delete_actor)
-    game_state += 1
-    delete_all_actors()
+function init_open_level()
+  -- draw a room
+  for i = 0, mapsize do
+    for j = 0, mapsize do
+      mset(i, j, floor)
+    end
+    mset(i, 0, wall)
+    mset(0, i, wall)
   end
-end
+  for i = 0, mapsize do
+    mset(i, 0, wall)
+    mset(0, i, wall)
+    mset(mapsize, i, wall)
+    mset(i, mapsize, wall)
+  end
 
-function draw_intro_level()
-  camera(0, 0)
+  for i = 0, 200 do
+    mset(rnd(mapsize) + 1, rnd(mapsize) + 1, wall)
+  end
 
-  map(0, 0, 0, 0, 16, 16)
+  -- giv the player some room
+  mset(1, 1, floor)
+  mset(1, 2, floor)
+  mset(1, 3, floor)
+  mset(2, 1, floor)
+  mset(2, 2, floor)
+  mset(2, 3, floor)
 
-  -- draw actors
-  foreach(actor,draw_actor)
-  print("->skip", 95, 12, 7)
-  draw_game_info()
+  init_player()
+
+  for i = 0, 3 do
+    insert_actor(lady_id)
+  end
+
+  for i = 0, 6 do
+    insert_actor(tsnow_id)
+  end
+
+  for i = 0, 10 do
+    insert_actor(spidy_id)
+  end
+
+  insert_portal()
+
 end
 
 function init_generated_level()
@@ -199,35 +285,7 @@ function init_generated_level()
 
   init_actors()
   init_player()
-end
-
-function update_generated_level()
-  control_player(jon)
-  foreach(actor, move_actor)
-  if time() % 2 == 0 then
-    payday()
-  end
-end
-
-function draw_generation_level()
-  cls()
-  camera(cam_x^1.5, cam_y^1.5)
-
-  map(0, 0, 0, 0, 128, 128)
-
-  -- draw actors
-  foreach(actor,draw_actor)
-
-  camera() -- resets camera postion to static so we can draw game info
-  if (debug == 1) then
-    print("floors: "..floorcount, 0, 112, 7)
-    print("iterations: "..iterations, 0, 100, 7)
-    -- log jon's coordinates
-    print("x "..jon.x,0,120,7)
-    print("y "..jon.y,64,120,7)
-    print('('..cam_x..', '..cam_y..')', 0, 0, 7)
-  end
-  draw_game_info()
+  insert_portal()
 end
 
 function draw_game_info()
@@ -244,21 +302,21 @@ function draw_game_info()
 end
 
 function reset_colors()
-    pal(1, 1)
-    pal(2, 2)
-    pal(3, 3)
-    pal(4, 4)
-    pal(5, 5)
-    pal(6, 6)
-    pal(7, 7)
-    pal(8, 8)
-    pal(9, 9)
-    pal(10, 10)
-    pal(11, 11)
-    pal(12, 12)
-    pal(13, 13)
-    pal(14, 14)
-    pal(15, 15)
+  pal(1, 1)
+  pal(2, 2)
+  pal(3, 3)
+  pal(4, 4)
+  pal(5, 5)
+  pal(6, 6)
+  pal(7, 7)
+  pal(8, 8)
+  pal(9, 9)
+  pal(10, 10)
+  pal(11, 11)
+  pal(12, 12)
+  pal(13, 13)
+  pal(14, 14)
+  pal(15, 15)
 end
 -->8
 -- actor
@@ -267,8 +325,8 @@ actor = {} --all actors in world
 -- inserts actor to the map
 -- if the cell is already occupied, we try again
 function insert_actor(actor_type)
-  local rndx = rnd(mapsize) + 1
-  local rndy = rnd(mapsize) + 1
+  local rndx = flr(rnd(mapsize) + 1)
+  local rndy = flr(rnd(mapsize) + 1)
 
   if (mget(rndx, rndy) == floor and is_within_map(rndx, rndy)) then
     place_actor(rndx, rndy, actor_type)
@@ -277,6 +335,20 @@ function insert_actor(actor_type)
 
   insert_actor(actor_type)
 end
+
+-- if the randomly selected tile is not a floor tile, 
+--   we will call the function again
+function insert_portal()
+  local rndx = flr(rnd(mapsize) + 1)
+  local rndy = flr(rnd(mapsize) + 1)
+
+  if (mget(rndx, rndy) != floor) insert_portal()
+
+  log("set portal: x:"..rndx.." y: "..rndy)
+
+  mset(rndx, rndy, portal_sprite)
+end
+
 -- init_actors
 -- initializes starting actors
 function init_actors()
@@ -299,6 +371,8 @@ function init_actors()
 end
 
 function place_actor(x, y, actor_type)
+  log("palced an actor: "..actor_type.." x: "..x.." y: "..y)
+
   if (actor_type == spidy_id) place_spidy(x,y)
 
   if (actor_type == aibit_id) place_aibit(x, y)
@@ -414,7 +488,6 @@ function move_actor(a)
   -- apply inertia
   -- set dx,dy to zero if you
   -- don't want inertia
-  
   a.dx *= a.inertia
   a.dy *= a.inertia
 
@@ -732,6 +805,8 @@ function draw_actor(a)
   local sy = (a.y * 8) - 4
 
   if (a.spritesize==1) then
+  palt(0, false)
+  palt(13,true)
   spr(a.spr + a.frame, sx, sy)
   end
 
@@ -739,6 +814,7 @@ function draw_actor(a)
     frameoffset = flr(a.frame) == 0 and 0 or 16
     sspr(32+frameoffset,16,16,8,sx,sy)
   end
+  palt()
 end
 
 -->8
@@ -764,6 +840,8 @@ end
 function control_player(pl)
   local prev_x = pl.x
   local prev_y = pl.y
+
+  if (mget(jon.x, jon.y) == portal_sprite) advance_game_state()
 
   if (btn(0)) then
     pl.dx -= jon_accel
@@ -806,6 +884,10 @@ function fillmap()
  end
 end
 
+-- keep track of which tiles we've placed floors in
+floors = {}
+additional_direction_tries = 0
+
 -- picks a random direction and 
 --   returns a new position {x, y}
 --   returns false if no good options in adjacent cells
@@ -817,38 +899,53 @@ function newdirection(x, y)
     {x = x-inc, y = y}, -- left
     {x = x, y = y-inc}, -- up
     {x = x, y = y+inc}, -- down
-    -- {x = x+inc, y = y+inc}, -- diagonal top right
-    -- {x = x+inc, y = y-inc}, -- diagonal bottom right
-    -- {x = x-inc, y = y-inc}, -- diagonal top left
-    -- {x = x-inc, y = y+inc}, -- diagonal bottom left
   }
-  local rnddir= flr(rnd(count(possibledirections)))
 
-  for j=0, additional_perimeter_checks do
+-- log_floors()
+  local rnddir= flr(rnd(count(possibledirections))+1)
+
+  -- for j=0, additional_perimeter_checks do
     -- try all 4 possible directions
     for i=0, count(possibledirections) do
-      rdir = (rnddir+i % count(possibledirections))+1
-      if(is_within_map(
-          possibledirections[rdir].x, 
-          possibledirections[rdir].y) and 
-          possibledirections[rdir] != floor) then
-        return possibledirections[rdir]
+      local rdir = ((rnddir + i) % count(possibledirections))+1
+
+      -- check to make sure we haven't already placed a floor here.
+      if(floors[possibledirections[rdir].x..", "..possibledirections[rdir].y] == nil) then
+        if(is_within_map(
+            possibledirections[rdir].x, 
+            possibledirections[rdir].y) and 
+            possibledirections[rdir] != floor) then
+          floors[possibledirections[rdir].x..", "..possibledirections[rdir].y] = true
+          log(" x: "..possibledirections[rdir].x.." y: "..possibledirections[rdir].y)
+          return possibledirections[rdir].x,possibledirections[rdir].y
+        end
       end
     end
-    inc += 1
-  end
+  --   inc += 1
+  -- end
 
+  -- we still don't have a route here... 
+  --   let's find one
+    next_x, next_y = false, false
+    if (additional_direction_tries < additional_direction_tries_max) then
+      additional_direction_tries += 1
+      next_x, next_y = newdirection(toward_center(x, y))
+    end
   -- if we don't get a good option return false
-  return false
+  return next_x, next_y
 end
 
 -- dig takes a position and based on that it will 
 --   place floors instead of walls
 function dig(x, y)
-  local next = newdirection(x, y)
-  if (next == false) return
+  additional_direction_tries = 0 -- reset additional_direction_tries
+  local next_x, next_y = newdirection(x, y)
+  if (next_x == false or next_y == false) then
+    log("no option")
+    return
+  end
 
-  local nexttile = mget(next.x, next.y)
+  local nexttile = mget(next_x, next_y)
 
   iterations += 1
   -- base condition: if floor 
@@ -859,15 +956,26 @@ function dig(x, y)
     return
   else -- else dig out a floor
     floorcount += 1 -- keep a count of how many floor tiles we've placed
-    mset(next.x, next.y, floor) -- set a floor tile
-    dig(next.x, next.y)
+    mset(next_x, next_y, floor) -- set a floor tile
+    dig(next_x, next_y)
   end
 end
 
-function is_within_map(x, y)
-  if (y == 0 or x == 0) return false
+function toward_center(x, y)
+  local new_x = (x > (mapsize / 2)) and x - 1 or x + 1
+  local new_y = (y > (mapsize / 2)) and y - 1 or y + 1
+  log("next: x:"..new_x.." y: ".. new_y)
+  return new_x, new_y
+end
 
-  if (x >= mapsize or y >= mapsize) return false
+function is_within_map(x, y)
+  if (y == 0) return false
+
+  if (x == 0) return false
+
+  if (x >= mapsize) return false
+
+  if (y >= mapsize) return false
 
   return true
 end
@@ -893,38 +1001,38 @@ function check_neighbors(x, y)
 end
 
 __gfx__
-1111110001111100011111001111110000000000000000000000000066066666dddddddddddddddd000000000000000000000000000000000000000000000000
-1111111111111111111111111111111100000000000000000000000066066666d0dddddddddddddd000000000000000000000000000000000000000000000000
-f6ff6f000f6ff6f00fff6ff0f6ff6f0000000000000000000000000000600000dddddddddddddddd000000000000000000000000000000000000000000000000
-ffffff000ffffff00ffffff0ffffff0000000000000000000000000066666066dddddddddddddddd000000000000000000000000000000000000000000000000
-0ccc000000ccc00000ccc0000ccc000000000000000000000000000065666066dddddddddddddddd000000000000000000000000000000000000000000000000
-0111000000111000001111000111000000000000000000000000000000000000dddddddddddddddd000000000000000000000000000000000000000000000000
-0101000051101150511001001101000000000000000000000000000066566656dddddd7ddddddddd000000000000000000000000000000000000000000000000
-5505500050000050500005500005500000000000000000000000000066666666ddddddd7dddddddd000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-08808800088088000880880000000000606060606060606060606060000000000000000000000000000000000000000000000000000000000000000000000000
-88888780888887808888878000000000bbbbbbbbbbbbbbbbbbbbbbbb000000000000000000000000000000000000000000000000000000000000000000000000
-88888880888888808888888000000000b101b01bb101b01bb101b01b000000000000000000000000000000000000000000000000000000000000000000000000
-08888800088888000888880000000000b101b01bb101b01bb101b01b000000000000000000000000000000000000000000000000000000000000000000000000
-00888000008880000088800000000000bbbbbbbbbbbbbbbbbbbbbbbb000000000000000000000000000000000000000000000000000000000000000000000000
-00080000000800000008000000000000606060606060606060606060000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000400000000400000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000004040000004040000444000000444000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000040004011040004004000401104000400000000000000000000000000000000000000000000000000000000000000000
-00077000000770000007700000000000400400411400400440040041140040040000000000000000000000000000000000000000000000000000000000000000
-00076770000767700007677000000000004040455404040000404095590404000000000000000000000000000000000000000000000000000000000000000000
-0077777000777c700077777000000000040004588540004004000998899000400000000000000000000000000000000000000000000000000000000000000000
-07667677077776770766767700000000400000844800000400400089980004000000000000000000000000000000000000000000000000000000000000000000
+111111ddd11111ddd11111dd111111dd00000000000000000000000066066666dddddddddddddddd511111150000000000000000000000000000000000000000
+1111111111111111111111111111111100000000000000000000000066066666d0dddddddddddddd51eeee150000000000000000000000000000000000000000
+f6ff6fdddf6ff6fddfff6ffdf6ff6fdd00000000000000000000000000600000dddddddddddddddd51eaae150000000000000000000000000000000000000000
+ffffffdddffffffddffffffdffffffdd00000000000000000000000066666066dddddddddddddddd51eaae150000000000000000000000000000000000000000
+dcccddddddcccdddddcccddddcccdddd00000000000000000000000065666066dddddddddddddddd51eaae150000000000000000000000000000000000000000
+d111dddddd111ddddd1111ddd111dddd00000000000000000000000000000000dddddddddddddddd51eaae150000000000000000000000000000000000000000
+d1d1dddd011d110d011dd1dd11d1dddd00000000000000000000000066566656dddddd7ddddddddd51eeee150000000000000000000000000000000000000000
+00d00ddd0ddddd0d0dddd00dddd00ddd00000000000000000000000066666666ddddddd7dddddddd511111150000000000000000000000000000000000000000
+dddddddddddddddddddddddd00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+d88d88ddd88d88ddd88d88dd00000000606060606060606060606060000000000000000000000000000000000000000000000000000000000000000000000000
+8888878d8888878d8888878d00000000bbbbbbbbbbbbbbbbbbbbbbbb000000000000000000000000000000000000000000000000000000000000000000000000
+8888888d8888888d8888888d00000000b101b01bb101b01bb101b01b000000000000000000000000000000000000000000000000000000000000000000000000
+d88888ddd88888ddd88888dd00000000b101b01bb101b01bb101b01b000000000000000000000000000000000000000000000000000000000000000000000000
+dd888ddddd888ddddd888ddd00000000bbbbbbbbbbbbbbbbbbbbbbbb000000000000000000000000000000000000000000000000000000000000000000000000
+ddd8ddddddd8ddddddd8dddd00000000606060606060606060606060000000000000000000000000000000000000000000000000000000000000000000000000
+dddddddddddddddddddddddd00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+dddddddddddddddddddddddd000000000004000000004ddd00000000000000000000000000000000000000000000000000000000000000000000000000000000
+dddddddddddddddddddddddd0000000000404000000404dd00444000000444000000000000000000000000000000000000000000000000000000000000000000
+dddddddddddddddddddddddd00000000040004011040004d04000401104000400000000000000000000000000000000000000000000000000000000000000000
+ddd77dddddd77dddddd77ddd00000000400400411400400440040041140040040000000000000000000000000000000000000000000000000000000000000000
+ddd7677dddd7677dddd7677d00000000004040455404040000404095590404000000000000000000000000000000000000000000000000000000000000000000
+dd77777ddd777c7ddd77777d00000000040004588540004004000998899000400000000000000000000000000000000000000000000000000000000000000000
+d7667677d7777677d766767700000000400000844800000400400089980004000000000000000000000000000000000000000000000000000000000000000000
 77777777767677777777777700000000000000088000000000000008800000000000000000000000000000000000000000000000000000000000000000000000
-03bb3300033bbb000333bb0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-3bbfbbb0b3bbfbb033bbfbb000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-31ff1fb03f1ff1b03f1f1fb000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-3bffffb03bffffb03bffffb000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-3b2f2b003b2f2b003b2f2b0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-0ff2ff0000ff2ff0ff2ff00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-0ef2fe0000fe2fe0ef2ef00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00808000002020000020200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+d3bb33ddd33bbbddd333bbdd00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+3bbfbbbdb3bbfbbd33bbfbbd00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+31ff1fbd3f1ff1bd3f1f1fbd00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+3bffffbd3bffffbd3bffffbd00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+3b2f2bdd3b2f2bdd3b2f2bdd00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+dff2ffddddff2ffdff2ffddd00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+def2feddddfe2fedef2efddd00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+dd8d8ddddd2d2ddddd2d2ddd00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 __label__
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
