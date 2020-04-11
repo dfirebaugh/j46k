@@ -18,9 +18,6 @@ wall=7
 floor=9
 sfx_enabled=0
 
-trs80_unlocked = 1
-trs80_placed = 0
-
 -- spawn chances
 --   note: adding too many assests will cause lag
 lady_spawn_number = 1
@@ -134,13 +131,14 @@ function advance_game_state()
   delete_all_actors()
   game_state += 1
   message("update state -- game_state: "..game_state)
-  trs80_placed = 0
 end
 
 player_initialized = 0
 
 function _update()
   if(time() - last_hit > .2 and time() - last_pickup > .2) reset_colors()
+
+  init_player()
 
   if(game_state == setup_intro_level) then
     advance_game_state()
@@ -156,24 +154,16 @@ function _update()
   elseif (game_state == play_open_level) then
     pal(13, 5)
     standard_update()
-  elseif (game_state == setup_trs80_level) then
-    advance_game_state()
-    init_trs80_level()
+  elseif (game_state == play_open_level+1) then
+    if (jon.aibits < ai_bits_til_boss) then
+      game_state = setup_open_level
+    else
+      advance_game_state()
+      init_trs80_level()
+    end
   elseif (game_state == play_trs80_level) then
     standard_update()
   end
-
-  init_player()
-
-  if (jon.aibits < ai_bits_til_boss) then
-    if (game_state == play_open_level+1) then
-      game_state = setup_open_level
-    end
-  end
-
-
-
-  update_player()
 end
 
 function _draw()
@@ -194,6 +184,7 @@ function _draw()
 
   -- draw actors
   foreach(actor,draw_actor)
+  draw_actor(jon)
 
   camera() -- resets camera postion to static so we can draw game info
   print_debug()
@@ -204,9 +195,6 @@ end
 
 function print_debug()
   if (debug == 0) return
-
-  print("floors: "..count(floors), 0, 90, 7)
-
   -- log jon's coordinates
   print("x "..jon.x,0,120,7)
   print("y "..jon.y,64,120,7)
@@ -214,13 +202,14 @@ function print_debug()
 end
 
 function standard_update()
+message("standard update")
   control_player(jon)
+  update_player()
+  move_actor(jon)
   foreach(actor, move_actor)
   if time() % 2 == 0 then
     payday()
-  end
-
-  if (trs80_unlocked == 1) place_trs80()
+  end 
 
   if (jon.aibits >= ai_bits_til_boss) unlock_trs80()
 end
@@ -272,6 +261,7 @@ function init_open_level()
 end
 
 function init_trs80_level()
+  reset_player()
   draw_small_room()
   place_trs80()
 end
@@ -330,7 +320,7 @@ function place_trs80()
   if (trs80_placed == 1) return
 
   trs80_placed = 1
-  trs80 = make_actor(startx+2, starty+2)
+  trs80 = make_actor(6, 6)
   trs80.spritesize = 4
   trs80.spr = trs80_sprite
   trs80.name = "trs80"
@@ -862,7 +852,6 @@ end
 function reset_player()
   jon.x = startx+1
   jon.y = starty+1
-  add(actor,jon)
 end
 
 function init_player()
@@ -870,7 +859,25 @@ function init_player()
 
   player_initialized = 1
   -- jon
-  jon = make_actor(startx+1, starty+1)
+  jon = {}
+
+  jon.x = startx+1
+  jon.y = starty+1
+  jon.spritesize = 1
+  jon.dx=1
+  jon.dy=-0.1
+  jon.inertia=0.5
+  jon.frame = 0
+  jon.t = 0
+  jon.bounce  = 1
+
+  -- half-width and half-height
+  -- slightly less than 0.5 so
+  -- that will fit through 1-wide
+  -- holes.
+  jon.w = 0.4
+  jon.h = 0.4
+
   jon.bandolier = 0
   jon.spr = 0
   jon.thunder_power = 1
