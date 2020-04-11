@@ -21,10 +21,11 @@ floor=9
 sfx_enabled=0
 
 -- spawn chances
+--   note: adding too many assests will cause lag
 lady_spawn_number = 3
-spidy_spawn_number = 2
+spidy_spawn_number = 5
 tsnow_spawn_number = 8
-aibit_spawn_number = 15
+aibit_spawn_number = 3
 
 -- sprites
 tsnow_sprite = 32
@@ -72,8 +73,6 @@ setup_intro_level = 0
 play_intro_level = 1
 setup_open_level = 2
 play_open_level = 3
-setup_generated_level = 4
-play_generated_level = 5
 
 -- game state:
 game_state = setup_intro_level
@@ -136,11 +135,6 @@ function _update()
   elseif (game_state == play_open_level) then
     pal(13, 5)
     standard_update()
-  -- elseif (game_state == setup_generated_level) then
-  --   advance_game_state()
-  --   init_generated_level()
-  -- elseif(game_state == play_generated_level) then
-  --   standard_update()
   elseif (game_state == play_open_level+1) then
     game_state = setup_open_level
   end
@@ -163,12 +157,8 @@ function _draw()
 
     map(0, 0, 0, 0, 16, 16)
 
-    print("->skip", 95, 12, 7)
+    -- print("->skip", 95, 12, 7)
   elseif (game_state == play_open_level) then
-    camera(cam_x^1.5, cam_y^1.5)
-
-    map(0, 0, 0, 0, 128, 128)
-  elseif (game_state == play_generated_level) then
     camera(cam_x^1.5, cam_y^1.5)
 
     map(0, 0, 0, 0, 128, 128)
@@ -188,7 +178,6 @@ function print_debug()
   if (debug == 0) return
 
   print("floors: "..count(floors), 0, 90, 7)
-  print("iterations: "..iterations, 0, 100, 7)
 
   -- log jon's coordinates
   print("x "..jon.x,0,120,7)
@@ -224,6 +213,7 @@ function init_intro_level()
   place_tsnow(5, 10)
   place_tsnow(5, 11)
   place_spidy(10, 12)
+  mset(14, 1, portal_sprite)
 end
 
 function init_open_level()
@@ -255,36 +245,8 @@ function init_open_level()
   mset(2, 3, floor)
 
   init_player()
-
-  for i = 0, 3 do
-    insert_actor(lady_id)
-  end
-
-  for i = 0, 6 do
-    insert_actor(tsnow_id)
-  end
-
-  for i = 0, 10 do
-    insert_actor(spidy_id)
-  end
-
-  insert_portal()
-
-end
-
-function init_generated_level()
-  -- fill the map with walls
-  fillmap()
-  dig(startx, starty)
-
-  -- set start position
-  mset(startx,starty,floor)
-  mset(startx+1, starty, floor)
-  mset(startx, starty+1, floor)
-  mset(startx+1, starty+1, floor)
-
   init_actors()
-  init_player()
+
   insert_portal()
 end
 
@@ -538,7 +500,7 @@ end
 function place_spidy(x, y)
   spidy = make_actor(x, y)
   spidy.spritesize = 2
-  spidy.spr = 36
+  spidy.spr = spidy_sprite
   spidy.name = "spidy"
   spidy.health = spidy_health
   spidy.actor_id = spidy_id
@@ -546,7 +508,7 @@ end
 
 function place_aibit(x, y)
   aibit = make_actor(x, y)
-  aibit.spr = 20
+  aibit.spr = aibit_sprite
   aibit.actor_id = aibit_id
 end
 
@@ -873,100 +835,6 @@ function control_player(pl)
 end
 -->8
 -- generate map
-iterations=0
-floorcount=0
-
-function fillmap()
- for i=0,mapsize do
-  for j=0, mapsize do
-    mset(i,j,wall)
-  end
- end
-end
-
--- keep track of which tiles we've placed floors in
-floors = {}
-additional_direction_tries = 0
-
--- picks a random direction and 
---   returns a new position {x, y}
---   returns false if no good options in adjacent cells
-function newdirection(x, y)
-  local inc = 1
-
-  local possibledirections = {
-    {x = x+inc, y = y}, -- right
-    {x = x-inc, y = y}, -- left
-    {x = x, y = y-inc}, -- up
-    {x = x, y = y+inc}, -- down
-  }
-
--- log_floors()
-  local rnddir= flr(rnd(count(possibledirections))+1)
-
-  -- for j=0, additional_perimeter_checks do
-    -- try all 4 possible directions
-    for i=0, count(possibledirections) do
-      local rdir = ((rnddir + i) % count(possibledirections))+1
-
-      -- check to make sure we haven't already placed a floor here.
-      if(floors[possibledirections[rdir].x..", "..possibledirections[rdir].y] == nil) then
-        if(is_within_map(
-            possibledirections[rdir].x, 
-            possibledirections[rdir].y) and 
-            possibledirections[rdir] != floor) then
-          floors[possibledirections[rdir].x..", "..possibledirections[rdir].y] = true
-          log(" x: "..possibledirections[rdir].x.." y: "..possibledirections[rdir].y)
-          return possibledirections[rdir].x,possibledirections[rdir].y
-        end
-      end
-    end
-  --   inc += 1
-  -- end
-
-  -- we still don't have a route here... 
-  --   let's find one
-    next_x, next_y = false, false
-    if (additional_direction_tries < additional_direction_tries_max) then
-      additional_direction_tries += 1
-      next_x, next_y = newdirection(toward_center(x, y))
-    end
-  -- if we don't get a good option return false
-  return next_x, next_y
-end
-
--- dig takes a position and based on that it will 
---   place floors instead of walls
-function dig(x, y)
-  additional_direction_tries = 0 -- reset additional_direction_tries
-  local next_x, next_y = newdirection(x, y)
-  if (next_x == false or next_y == false) then
-    log("no option")
-    return
-  end
-
-  local nexttile = mget(next_x, next_y)
-
-  iterations += 1
-  -- base condition: if floor 
-  --  count is greater than 
-  --  predetermined set value, 
-  --  break the loop
-  if (iterations == dig_iteration_limit) then
-    return
-  else -- else dig out a floor
-    floorcount += 1 -- keep a count of how many floor tiles we've placed
-    mset(next_x, next_y, floor) -- set a floor tile
-    dig(next_x, next_y)
-  end
-end
-
-function toward_center(x, y)
-  local new_x = (x > (mapsize / 2)) and x - 1 or x + 1
-  local new_y = (y > (mapsize / 2)) and y - 1 or y + 1
-  log("next: x:"..new_x.." y: ".. new_y)
-  return new_x, new_y
-end
 
 function is_within_map(x, y)
   if (y == 0) return false
@@ -980,25 +848,6 @@ function is_within_map(x, y)
   return true
 end
 
--- check_neighbors looks at the 
---   neigboring tiles around a tile
---   to see if they are floor tiles
---
---   returns true if all neighbors are floors
-function check_neighbors(x, y)
-  local neighbors = {
-    {x = x + 1, y = y}, -- right
-    {x = x - 1, y = y}, -- left
-    {x = x, y = y - 1}, -- up
-    {x = x, y = y + 1}, -- down
-  }
-
-  for i = 1, count(neighbors) do
-    if (mget(neighbors[i].x, neighbors[i].y) == wall) return false
-  end
-
-  return true
-end
 
 __gfx__
 111111ddd11111ddd11111dd111111dd00000000000000000000000066066666dddddddddddddddd511111150000000000000000000000000000000000000000
@@ -1017,9 +866,9 @@ d88888ddd88888ddd88888dd00000000b101b01bb101b01bb101b01b000000000000000000000000
 dd888ddddd888ddddd888ddd00000000bbbbbbbbbbbbbbbbbbbbbbbb000000000000000000000000000000000000000000000000000000000000000000000000
 ddd8ddddddd8ddddddd8dddd00000000606060606060606060606060000000000000000000000000000000000000000000000000000000000000000000000000
 dddddddddddddddddddddddd00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-dddddddddddddddddddddddd000000000004000000004ddd00000000000000000000000000000000000000000000000000000000000000000000000000000000
-dddddddddddddddddddddddd0000000000404000000404dd00444000000444000000000000000000000000000000000000000000000000000000000000000000
-dddddddddddddddddddddddd00000000040004011040004d04000401104000400000000000000000000000000000000000000000000000000000000000000000
+dddddddddddddddddddddddd00000000000400000000400000000000000000000000000000000000000000000000000000000000000000000000000000000000
+dddddddddddddddddddddddd00000000004040000004040000444000000444000000000000000000000000000000000000000000000000000000000000000000
+dddddddddddddddddddddddd00000000040004011040004004000401104000400000000000000000000000000000000000000000000000000000000000000000
 ddd77dddddd77dddddd77ddd00000000400400411400400440040041140040040000000000000000000000000000000000000000000000000000000000000000
 ddd7677dddd7677dddd7677d00000000004040455404040000404095590404000000000000000000000000000000000000000000000000000000000000000000
 dd77777ddd777c7ddd77777d00000000040004588540004004000998899000400000000000000000000000000000000000000000000000000000000000000000
