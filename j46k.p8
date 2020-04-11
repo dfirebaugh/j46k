@@ -68,6 +68,15 @@ jon_accel_upper_limit = .15
 tsnow_increment = 10
 spidy_health = 100
 
+left = 0
+left_up = 1
+left_down = 2
+right = 3
+right_up = 4
+right_down = 5
+up = 6
+down = 7
+
 -- game_states:
 setup_intro_level = 0
 play_intro_level = 1
@@ -369,7 +378,7 @@ function make_actor(x, y)
   a.w = 0.4
   a.h = 0.4
   
-  add(actor,a)add(actor,a)
+  add(actor,a)
 
   return a
 end
@@ -671,6 +680,8 @@ function track_with_player(a)
   end
 end
 
+
+last_btn = 1
 function launch_actor()
   if(jon.bandolier > 0) then
     jon.bandolier -= 1
@@ -679,16 +690,25 @@ function launch_actor()
     launched_actor.dx = 0
     launched_actor.dy = 0
 
-    if (btn(0)) then
+    if (last_btn == left) then
       launched_actor.dx -= launch_speed
-    end
-    if (btn(1)) then
+    elseif (last_btn == right) then
       launched_actor.dx += launch_speed
-    end
-    if (btn(2)) then
+    elseif (last_btn == up) then
       launched_actor.dy -= launch_speed
-    end
-    if (btn(3)) then
+    elseif (last_btn == down) then
+      launched_actor.dy += launch_speed
+    elseif (last_btn == left_up) then
+      launched_actor.dx -= launch_speed
+      launched_actor.dy -= launch_speed
+    elseif (last_btn == left_down) then
+      launched_actor.dx -= launch_speed
+      launched_actor.dy += launch_speed
+    elseif (last_btn == right_up) then
+      launched_actor.dx += launch_speed
+      launched_actor.dy -= launch_speed
+    elseif (last_btn == right_down) then
+      launched_actor.dx += launch_speed
       launched_actor.dy += launch_speed
     end
   end
@@ -805,17 +825,38 @@ function control_player(pl)
 
   if (mget(jon.x, jon.y) == portal_sprite) advance_game_state()
 
-  if (btn(0)) then
+  -- leftup
+  if (btn(0) and btn(2)) then
     pl.dx -= jon_accel
-  end
-  if (btn(1)) then
-    pl.dx += jon_accel
-  end
-  if (btn(2)) then
     pl.dy -= jon_accel
-  end
-  if (btn(3)) then
+    last_btn = left_up
+  -- leftdown
+  elseif (btn(0) and btn(3)) then
+    pl.dx -= jon_accel
     pl.dy += jon_accel
+    last_btn = left_down
+  -- rightup
+  elseif (btn(1) and btn(2)) then
+    pl.dx += jon_accel
+    pl.dy -= jon_accel
+    last_btn = right_up
+  -- rightdown
+  elseif (btn(1) and btn(3)) then
+    pl.dx += jon_accel
+    pl.dy += jon_accel
+    last_btn = right_down
+  elseif (btn(0)) then
+    pl.dx -= jon_accel
+    last_btn = left
+  elseif (btn(1)) then
+    pl.dx += jon_accel
+    last_btn = right
+  elseif (btn(2)) then
+    pl.dy -= jon_accel
+    last_btn = up
+  elseif (btn(3)) then
+    pl.dy += jon_accel
+    last_btn = down
   end
 
   if(btnp(4)) launch_actor()
