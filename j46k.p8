@@ -11,8 +11,6 @@ debug = 0
 --   moving toward center
 additional_direction_tries_max = 10
 
-dig_iteration_limit = 2000
-
 mapsize = 48
 startx = 1
 starty = 1
@@ -20,9 +18,12 @@ wall=7
 floor=9
 sfx_enabled=0
 
+trs80_unlocked = 1
+trs80_placed = 0
+
 -- spawn chances
 --   note: adding too many assests will cause lag
-lady_spawn_number = 3
+lady_spawn_number = 1
 spidy_spawn_number = 5
 tsnow_spawn_number = 8
 aibit_spawn_number = 3
@@ -33,6 +34,7 @@ lady_sprite = 48
 spidy_sprite = 36
 aibit_sprite = 20
 portal_sprite = 10
+trs80_sprite = 24
 
 -- actor ids:
 player_id = 0
@@ -40,6 +42,10 @@ lady_id = 1
 tsnow_id = 2
 aibit_id = 3
 spidy_id = 4
+trs80_id = 5
+
+-- how many aibits till we can get to the boss
+ai_bits_til_boss = 10
 
 lady_attack_modifier = 20
 launch_speed = 1.8
@@ -82,6 +88,8 @@ setup_intro_level = 0
 play_intro_level = 1
 setup_open_level = 2
 play_open_level = 3
+setup_trs80_level = 4
+play_trs80_level = 5
 
 -- game state:
 game_state = setup_intro_level
@@ -125,7 +133,11 @@ function advance_game_state()
   reset_colors()
   delete_all_actors()
   game_state += 1
+  message("update state -- game_state: "..game_state)
+  trs80_placed = 0
 end
+
+player_initialized = 0
 
 function _update()
   if(time() - last_hit > .2 and time() - last_pickup > .2) reset_colors()
@@ -144,19 +156,24 @@ function _update()
   elseif (game_state == play_open_level) then
     pal(13, 5)
     standard_update()
-  elseif (game_state == play_open_level+1) then
-    game_state = setup_open_level
+  elseif (game_state == setup_trs80_level) then
+    advance_game_state()
+    init_trs80_level()
+  elseif (game_state == play_trs80_level) then
+    standard_update()
   end
 
--- todo: fix jon's acceleration
-  -- if (jon_accel > jon_accel_upper_limit) then
-  --   jon_accel = jon_accel_upper_limit
-  -- elseif (jon_accel < jon_accel_upper_limit and jon.thunder_power > 20) then
-  --   jon_accel = jon_accel_rate * (jon.thunder_power / thunder_snow_accel_multiplier)
-  -- else
-  --   jon_accel = jon_initial_speed
-  -- end
-  -- message("jon accel: "..jon_accel)
+  init_player()
+
+  if (jon.aibits < ai_bits_til_boss) then
+    if (game_state == play_open_level+1) then
+      game_state = setup_open_level
+    end
+  end
+
+
+
+  update_player()
 end
 
 function _draw()
@@ -165,8 +182,10 @@ function _draw()
     camera(0, 0)
 
     map(0, 0, 0, 0, 16, 16)
+  elseif (game_state == play_trs80_level) then
+    camera(0, 0)
 
-    -- print("->skip", 95, 12, 7)
+    map(0, 0, 0, 0, 16, 16)
   elseif (game_state == play_open_level) then
     camera(cam_x^1.5, cam_y^1.5)
 
@@ -200,21 +219,14 @@ function standard_update()
   if time() % 2 == 0 then
     payday()
   end
+
+  if (trs80_unlocked == 1) place_trs80()
+
+  if (jon.aibits >= ai_bits_til_boss) unlock_trs80()
 end
 
 function init_intro_level()
-  -- draw a room
-  for i = 0, 14 do
-    for j = 0, 14 do
-      mset(i, j, floor)
-    end
-    mset(i, 0, wall)
-    mset(0, i, wall)
-    mset(15, i, wall)
-    mset(i, 13, wall)
-  end
-  mset(15,15, wall)
-  init_player()
+  draw_small_room()
   place_lady(5, 5)
   place_lady(5, 10)
   place_lady(2, 5)
@@ -253,10 +265,29 @@ function init_open_level()
   mset(2, 2, floor)
   mset(2, 3, floor)
 
-  init_player()
+  reset_player()
   init_actors()
 
   insert_portal()
+end
+
+function init_trs80_level()
+  draw_small_room()
+  place_trs80()
+end
+
+function draw_small_room()
+  -- draw a room
+  for i = 0, 14 do
+    for j = 0, 14 do
+      mset(i, j, floor)
+    end
+    mset(i, 0, wall)
+    mset(0, i, wall)
+    mset(15, i, wall)
+    mset(i, 13, wall)
+  end
+  mset(15,15, wall)
 end
 
 function draw_game_info()
@@ -289,6 +320,23 @@ function reset_colors()
   pal(14, 14)
   pal(15, 15)
 end
+
+function unlock_trs80()
+  message("unlocked trs80")
+  trs80_unlocked = 1
+end
+
+function place_trs80()
+  if (trs80_placed == 1) return
+
+  trs80_placed = 1
+  trs80 = make_actor(startx+2, starty+2)
+  trs80.spritesize = 4
+  trs80.spr = trs80_sprite
+  trs80.name = "trs80"
+  trs80.actor_id = trs80_id
+end
+
 -->8
 -- actor
 actor = {} --all actors in world
@@ -351,6 +399,7 @@ function place_actor(x, y, actor_type)
   if (actor_type == tsnow_id) place_tsnow(x, y)
 
   if (actor_type == lady_id) place_lady(x, y)
+
 end
 
 -- make an actor
@@ -787,22 +836,39 @@ function draw_actor(a)
   local sy = (a.y * 8) - 4
 
   if (a.spritesize==1) then
-  palt(0, false)
-  palt(13,true)
-  spr(a.spr + a.frame, sx, sy)
+    palt(0, false)
+    palt(13,true)
+    spr(a.spr + a.frame, sx, sy)
   end
 
   if (a.spritesize==2) then
     frameoffset = flr(a.frame) == 0 and 0 or 16
     sspr(32+frameoffset,16,16,8,sx,sy)
   end
+
+  if (a.spritesize == 4) then
+  -- TODO: fix this to be dynamic right now it just loads the trs80
+    palt(0, false)
+    palt(13,true)
+    sspr(64, 8, 16, 16, sx, sy)
+  end
+
   palt()
 end
 
 -->8
 -- player
 
+function reset_player()
+  jon.x = startx+1
+  jon.y = starty+1
+  add(actor,jon)
+end
+
 function init_player()
+  if (player_initialized == 1) return
+
+  player_initialized = 1
   -- jon
   jon = make_actor(startx+1, starty+1)
   jon.bandolier = 0
@@ -817,6 +883,18 @@ end
 
 function payday()
   jon.cash += 10
+end
+
+function update_player()
+-- todo: fix jon's acceleration
+  -- if (jon_accel > jon_accel_upper_limit) then
+  --   jon_accel = jon_accel_upper_limit
+  -- elseif (jon_accel < jon_accel_upper_limit and jon.thunder_power > 20) then
+  --   jon_accel = jon_accel_rate * (jon.thunder_power / thunder_snow_accel_multiplier)
+  -- else
+  --   jon_accel = jon_initial_speed
+  -- end
+  -- message("jon accel: "..jon_accel)
 end
 
 function control_player(pl)
@@ -899,22 +977,22 @@ dcccddddddcccdddddcccddddcccdddd00000000000000000000000065666066dddddddddddddddd
 d111dddddd111ddddd1111ddd111dddd00000000000000000000000000000000dddddddddddddddd51eaae150000000000000000000000000000000000000000
 d1d1dddd011d110d011dd1dd11d1dddd00000000000000000000000066566656dddddd7ddddddddd51eeee150000000000000000000000000000000000000000
 00d00ddd0ddddd0d0dddd00dddd00ddd00000000000000000000000066666666ddddddd7dddddddd511111150000000000000000000000000000000000000000
-dddddddddddddddddddddddd00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-d88d88ddd88d88ddd88d88dd00000000606060606060606060606060000000000000000000000000000000000000000000000000000000000000000000000000
-8888878d8888878d8888878d00000000bbbbbbbbbbbbbbbbbbbbbbbb000000000000000000000000000000000000000000000000000000000000000000000000
-8888888d8888888d8888888d00000000b101b01bb101b01bb101b01b000000000000000000000000000000000000000000000000000000000000000000000000
-d88888ddd88888ddd88888dd00000000b101b01bb101b01bb101b01b000000000000000000000000000000000000000000000000000000000000000000000000
-dd888ddddd888ddddd888ddd00000000bbbbbbbbbbbbbbbbbbbbbbbb000000000000000000000000000000000000000000000000000000000000000000000000
-ddd8ddddddd8ddddddd8dddd00000000606060606060606060606060000000000000000000000000000000000000000000000000000000000000000000000000
-dddddddddddddddddddddddd00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-dddddddddddddddddddddddd00000000000400000000400000000000000000000000000000000000000000000000000000000000000000000000000000000000
-dddddddddddddddddddddddd00000000004040000004040000444000000444000000000000000000000000000000000000000000000000000000000000000000
-dddddddddddddddddddddddd00000000040004011040004004000401104000400000000000000000000000000000000000000000000000000000000000000000
-ddd77dddddd77dddddd77ddd00000000400400411400400440040041140040040000000000000000000000000000000000000000000000000000000000000000
-ddd7677dddd7677dddd7677d00000000004040455404040000404095590404000000000000000000000000000000000000000000000000000000000000000000
-dd77777ddd777c7ddd77777d00000000040004588540004004000998899000400000000000000000000000000000000000000000000000000000000000000000
-d7667677d7777677d766767700000000400000844800000400400089980004000000000000000000000000000000000000000000000000000000000000000000
-77777777767677777777777700000000000000088000000000000008800000000000000000000000000000000000000000000000000000000000000000000000
+dddddddddddddddddddddddd0000000000000000000000000000000000000000ddd5555555555555000000000000000000000000000000000000000000000000
+d88d88ddd88d88ddd88d88dd0000000060606060606060606060606000000000dd55666666666665000000000000000000000000000000000000000000000000
+8888878d8888878d8888878d00000000bbbbbbbbbbbbbbbbbbbbbbbb00000000dd56000000065555000000000000000000000000000000000000000000000000
+8888888d8888888d8888888d00000000b101b01bb101b01bb101b01b00000000dd560b0bb0750005000000000000000000000000000000000000000000000000
+d88888ddd88888ddd88888dd00000000b101b01bb101b01bb101b01b00000000dd56000000c50005000000000000000000000000000000000000000000000000
+dd888ddddd888ddddd888ddd00000000bbbbbbbbbbbbbbbbbbbbbbbb00000000dd56000bb0055555000000000000000000000000000000000000000000000000
+ddd8ddddddd8ddddddd8dddd0000000060606060606060606060606000000000dd560c0000050005000000000000000000000000000000000000000000000000
+dddddddddddddddddddddddd0000000000000000000000000000000000000000dd56500000050005000000000000000000000000000000000000000000000000
+dddddddddddddddddddddddd0000000000040000000040000000000000000000dd56650660655555000000000000000000000000000000000000000000000000
+dddddddddddddddddddddddd0000000000404000000404000044400000044400d566555555556665000000000000000000000000000000000000000000000000
+dddddddddddddddddddddddd00000000040004011040004004000401104000405566666666666665000000000000000000000000000000000000000000000000
+ddd77dddddd77dddddd77ddd00000000400400411400400440040041140040045605050505050505000000000000000000000000000000000000000000000000
+ddd7677dddd7677dddd7677d00000000004040455404040000404095590404005050505050505665000000000000000000000000000000000000000000000000
+dd77777ddd777c7ddd77777d00000000040004588540004004000998899000405505050505056655000000000000000000000000000000000000000000000000
+d7667677d7777677d76676770000000040000084480000040040008998000400566666666666655d000000000000000000000000000000000000000000000000
+777777777676777777777777000000000000000880000000000000088000000055555555555555dd000000000000000000000000000000000000000000000000
 d3bb33ddd33bbbddd333bbdd00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 3bbfbbbdb3bbfbbd33bbfbbd00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 31ff1fbd3f1ff1bd3f1f1fbd00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
