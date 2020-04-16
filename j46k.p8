@@ -117,8 +117,8 @@ function check_for_message()
   end
 
   if (gmsg != nil) then
-    rectfill(0, 0, 128, 6, 0)
-    print(gmsg, 5, 0, msg_color)
+    rectfill(0, 100, 128, 110, 0)
+    print(gmsg, 10, 102, msg_color)
   end
 end
 
@@ -747,10 +747,13 @@ function handle_spidy_collision(a, spidy)
 
         if (drop_rnd < 75) then
           place_aibit(spidy.x, spidy.y)
+          message("spidy dropped an aibit")
         elseif (drop_rnd >= 75 and drop_rnd < 85) then
           place_lady(spidy.x, spidy.y)
+          message("spidy dropped a stripper")
         else
           place_tsnow(spidy.x, spidy.y)
+          message("spidy dropped a thundersnow")
         end
         delete_actor(spidy)
       end
