@@ -743,6 +743,15 @@ function handle_spidy_collision(a, spidy)
       end
 
       if (spidy.health < 0) then
+        local drop_rnd = rnd(100) + 1
+
+        if (drop_rnd < 75) then
+          place_aibit(spidy.x, spidy.y)
+        elseif (drop_rnd >= 75 and drop_rnd < 85) then
+          place_lady(spidy.x, spidy.y)
+        else
+          place_tsnow(spidy.x, spidy.y)
+        end
         delete_actor(spidy)
       end
   end
