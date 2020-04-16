@@ -688,7 +688,7 @@ end
       w.message = "welcome jon.  deposite aibits to start building your ai super power. Press btn to deposit aibits"
       w1 = make_window()
       w1.message = "cpu overloading... aibits generating supercomputer super nodes"
-      -- w.callback = deletetrs80
+      w.callback = deletetrs80
     end
   end
 end
@@ -796,6 +796,61 @@ function launch_actor()
       launched_actor.dy += launch_speed
     end
   end
+end
+
+function multi_dir_attack()
+    if (jon.bandolier > 0) then
+      local launched_actor = make_lady(jon.x, jon.y)
+      add(actor, launched_actor)
+      jon.bandolier -= 1
+      launched_actor.dx -= launch_speed
+    end
+    if (jon.bandolier > 1) then
+      local launched_actor = make_lady(jon.x, jon.y)
+      add(actor, launched_actor)
+      jon.bandolier -= 1
+      launched_actor.dx += launch_speed
+    end
+    if (jon.bandolier > 2) then
+      local launched_actor = make_lady(jon.x, jon.y)
+      add(actor, launched_actor)
+      jon.bandolier -= 1
+      launched_actor.dy -= launch_speed
+    end
+    if (jon.bandolier > 3) then
+      local launched_actor = make_lady(jon.x, jon.y)
+      add(actor, launched_actor)
+      jon.bandolier -= 1
+      launched_actor.dy += launch_speed
+    end
+    if (jon.bandolier > 4) then
+      local launched_actor = make_lady(jon.x, jon.y)
+      add(actor, launched_actor)
+      jon.bandolier -= 1
+      launched_actor.dx -= launch_speed
+      launched_actor.dy -= launch_speed
+    end
+    if (jon.bandolier > 5) then
+      local launched_actor = make_lady(jon.x, jon.y)
+      add(actor, launched_actor)
+      jon.bandolier -= 1
+      launched_actor.dx -= launch_speed
+      launched_actor.dy += launch_speed
+    end
+    if (jon.bandolier > 6) then
+      local launched_actor = make_lady(jon.x, jon.y)
+      add(actor, launched_actor)
+      jon.bandolier -= 1
+      launched_actor.dx += launch_speed
+      launched_actor.dy -= launch_speed
+    end
+    if (jon.bandolier > 7) then
+      local launched_actor = make_lady(jon.x, jon.y)
+      add(actor, launched_actor)
+      jon.bandolier -= 1
+      launched_actor.dx += launch_speed
+      launched_actor.dy += launch_speed
+    end
 end
 
 function handle_lady_collision(player_actor, lady_actor)
@@ -995,6 +1050,7 @@ function control_player(pl)
   end
 
   if(btnp(4)) launch_actor()
+  if(btnp(5)) multi_dir_attack()
 
   -- update camera
   cam_x = pl.x
