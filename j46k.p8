@@ -98,6 +98,8 @@ cam_y = 0
 last = 0
 msg_color = 1
 
+line_char_count = 24
+
 -- clear the log
 printh("", "log", true)
 
@@ -129,6 +131,13 @@ end
 function advance_game_state()
   reset_colors()
   delete_all_actors()
+  if (game_state == play_intro_level) then
+    explain_aibits = make_window()
+    explain_aibits.message = "collect aibits to power your super computer"
+
+    explain_tsnow = make_window()
+    explain_tsnow.message = "collect thundersnow to boost your attack power"
+  end
   game_state += 1
   log("update state -- game_state: "..game_state)
 end
@@ -318,7 +327,10 @@ function reset_colors()
 end
 
 function unlock_trs80()
-  message("unlocked trs80")
+  if (trs80_unlocked != 1) then
+    local w = make_window()
+    w.message = "you've unlocked the trs80.  find a portal to get to the trs80"
+  end
   trs80_unlocked = 1
 end
 
@@ -883,6 +895,10 @@ end
 function init_player()
   if (player_initialized == 1) return
   player_initialized = 1
+
+  starting_window = make_window()
+  starting_window.message = "Jon, you hate spiders.  Good thing these nice ladies have agreed to help you."
+
   -- jon
   jon = {}
 
@@ -1010,24 +1026,32 @@ windows = {}
 
 function draw_windows()
   if #windows > 0 then
+    local lines = get_lines_from_message(windows[1].message)
+
+    local line_height = 10
     local startx = 10
     local starty = 30
     local endx = 115
-    local endy = 100
+    local endy = #lines + (line_height * 7) + 12
     local color = 11
 
-    local line_height = 7
 
-    local lines = get_lines_from_message(windows[1].message)
 
     rectfill(startx, starty, endx, endy, 0)
 
     clip(startx, starty, endx-12, endy)
 
+    local line_num = windows[1].line
+
+    -- print lines that we already typed
     for i = 1, #lines do
-      print(lines[i], startx + 2, starty - 4 + line_height * i, color)
+      if line_num > i then
+        print(lines[i], startx + 2, starty - 4 + line_height * i, color)
+      end
     end
-    if (debug == 1) print("line_count: "..#lines, startx+2, starty + line_height * 9, color)
+
+    -- type out a line
+    print(animate_typing(lines, line_num), startx + 2, starty - 4 + line_height * line_num, color)
 
     print("❎", endx-10, endy-7, color)
     clip()
@@ -1037,21 +1061,81 @@ end
 
 function get_lines_from_message(msg)
   local lines = {}
-  local split_at = 25
+  local line_num = 1
+  local words = split(msg, " ")
 
-  while #msg > 0 do
-    if #msg < split_at then
-      add(lines, msg)
-      msg = ""
+  for w in all(words) do
+    -- if the line is empty, add the first word
+    if (type(lines[line_num]) == "nil") then
+      lines[line_num] = w
     else
-      add(lines, sub(msg, 1, split_at))
-      msg = sub(msg, split_at+1, #msg)
+      -- if adding the line fills up the line, 
+      -- wrap to the next line
+      -- plus one for a space at the end
+      if (#lines[line_num] + #w + 1 > line_char_count) then
+        line_num+=1
+      end
+
+      -- if the line is empty, 
+      -- add the first word
+      if (type(lines[line_num]) == "nil") then
+        lines[line_num] = w
+
+      -- otherwise concat to teh end of the line
+      else
+        lines[line_num] = lines[line_num].." "..w
+      end
     end
   end
 
-
   return lines
 end
+
+-- split string
+function split(str,d,dd)
+  local a={}
+  local c=0
+  local s=''
+  local tk=''
+
+  if dd~=nil then str=split(str,dd) end
+  while #str>0 do
+  if type(str)=='table' then
+    s=str[1]
+    add(a,split(s,d))
+    del(str,s)
+  else
+    s=sub(str,1,1)
+    str=sub(str,2)
+    if s==d then 
+    add(a,tk)
+    tk=''
+    else
+    tk=tk..s
+    end
+  end
+  end
+  add(a,tk)
+  return a
+end
+
+function animate_typing(lines, line_num)
+  if windows[1].line > line_num  then 
+    return lines[line_num]
+  end
+
+  windows[1].char += 1
+
+  if windows[1].char % line_char_count == 0 then
+    if windows[1].line + 1 <= #lines then
+      windows[1].line += 1
+      windows[1].char = 0
+    end
+  end
+
+  return sub(lines[line_num], 1, windows[1].char)
+end
+
 
 -- window callback should be what fires when a window is closed
 function default_window_callback()
@@ -1059,8 +1143,12 @@ end
 
 function make_window()
   local window = {}
-  window.height = 5
-  window.width = 10
+  -- char is which character index we have last typed
+  --   used for animation
+  window.char = 0
+  -- line is used to type one line at a time
+  --   used for animation
+  window.line = 1
   window.message = "This is a rather long message.  However, I just wanted to test that we are wrapping correctly"
   window.callback = default_window_callback
 
