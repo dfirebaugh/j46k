@@ -130,13 +130,18 @@ function advance_game_state()
   reset_colors()
   delete_all_actors()
   game_state += 1
-  message("update state -- game_state: "..game_state)
+  log("update state -- game_state: "..game_state)
 end
 
 player_initialized = 0
 
 function _update()
   if(time() - last_hit > .2 and time() - last_pickup > .2) reset_colors()
+
+  if #windows > 0 then
+    handle_window(windows[1])
+    return
+  end
 
   init_player()
 
@@ -168,6 +173,7 @@ end
 
 function _draw()
   cls()
+
   if(game_state == play_intro_level) then
     camera(0, 0)
 
@@ -191,6 +197,7 @@ function _draw()
   draw_game_info()
   -- message("game_state: "..game_state)
   check_for_message()
+  draw_windows()
 end
 
 function print_debug()
@@ -202,7 +209,6 @@ function print_debug()
 end
 
 function standard_update()
-message("standard update")
   control_player(jon)
   update_player()
   move_actor(jon)
@@ -636,7 +642,7 @@ function delete_all_actors()
 end
 
 function delete_actor(a)
-  for i=1, count(actor) do
+  for i=1, #actor do
     if (actor[i].x == a.x and actor[i].y == a.y and actor[i].actor_id == a.actor_id) then
       del(actor, actor[i])
       return
@@ -657,6 +663,24 @@ function handle_item_pickup()
   -- pal(6, 7)
   pal(15, 7)
 end
+
+
+function handle_trs80_collision(a, trs80_actor)
+function deletetrs80()
+  delete_actor(trs80_actor)
+end
+
+  if(trs80_actor.actor_id == trs80_id) then
+    if (a.player or a.actor_id == lady_id) then
+      w = make_window()
+      w.message = "welcome jon.  deposite aibits to start building your ai super power. Press btn to deposit aibits"
+      w1 = make_window()
+      w1.message = "cpu overloading... aibits generating supercomputer super nodes"
+      -- w.callback = deletetrs80
+    end
+  end
+end
+
 
 function handle_ai_bit_collision(a, aibit_actor)
   if(aibit_actor.actor_id == aibit_id) then
@@ -788,6 +812,7 @@ function solid_actor(a, dx, dy)
         handle_spidy_collision(a, a2)
         handle_lady_collision(a, a2)
         handle_ai_bit_collision(a, a2)
+        handle_trs80_collision(a, a2)
 
         return true 
       end
@@ -801,6 +826,7 @@ function solid_actor(a, dx, dy)
         handle_spidy_collision(a, a2)
         handle_lady_collision(a, a2)
         handle_ai_bit_collision(a, a2)
+        handle_trs80_collision(a, a2)
 
         return true 
       end
@@ -856,7 +882,6 @@ end
 
 function init_player()
   if (player_initialized == 1) return
-
   player_initialized = 1
   -- jon
   jon = {}
@@ -972,6 +997,83 @@ function is_within_map(x, y)
   if (y >= mapsize) return false
 
   return true
+end
+
+-->9
+-- window system
+
+-- we have a stack of windows, when the player hits the ❎ btn (i.e. btn(5))
+--   the window should perform some action (i.e. a callback should fire). 
+--   Typically the window closes
+
+windows = {}
+
+function draw_windows()
+  if #windows > 0 then
+    local startx = 10
+    local starty = 30
+    local endx = 115
+    local endy = 100
+    local color = 11
+
+    local line_height = 7
+
+    local lines = get_lines_from_message(windows[1].message)
+
+    rectfill(startx, starty, endx, endy, 0)
+
+    clip(startx, starty, endx-12, endy)
+
+    for i = 1, #lines do
+      print(lines[i], startx + 2, starty - 4 + line_height * i, color)
+    end
+    if (debug == 1) print("line_count: "..#lines, startx+2, starty + line_height * 9, color)
+
+    print("❎", endx-10, endy-7, color)
+    clip()
+    rect(startx, starty, endx, endy)
+  end
+end
+
+function get_lines_from_message(msg)
+  local lines = {}
+  local split_at = 25
+
+  while #msg > 0 do
+    if #msg < split_at then
+      add(lines, msg)
+      msg = ""
+    else
+      add(lines, sub(msg, 1, split_at))
+      msg = sub(msg, split_at+1, #msg)
+    end
+  end
+
+
+  return lines
+end
+
+-- window callback should be what fires when a window is closed
+function default_window_callback()
+end
+
+function make_window()
+  local window = {}
+  window.height = 5
+  window.width = 10
+  window.message = "This is a rather long message.  However, I just wanted to test that we are wrapping correctly"
+  window.callback = default_window_callback
+
+  add(windows, window)
+
+  return window
+end
+
+function handle_window(w)
+  if btnp(5) then
+    del(windows, w)
+    w.callback()
+  end
 end
 
 
