@@ -7,11 +7,7 @@ __lua__
 --[[const]] debug = 0
 
 --[[const]] jonny_cash_enabled = 0
-
--- additional_direction_tries_max is used in map generation
---   it represents how many attempts to make whilst
---   moving toward center
---[[const]] additional_direction_tries_max = 10
+--[[const]] spidys_to_beat_boss = 50
 
 --[[const]] mapsize = 48
 --[[const]] startx = 1
@@ -44,7 +40,7 @@ __lua__
 --[[const]] trs80_id = 5
 
 -- how many aibits till we can get to the boss
---[[const]] ai_bits_til_boss = 10
+--[[const]] ai_bits_til_boss = 20
 
 --[[const]] lady_attack_modifier = 20
 --[[const]] launch_speed = 1.8
@@ -90,13 +86,17 @@ __lua__
 --[[const]] play_open_level = 3
 --[[const]] setup_trs80_level = 4
 --[[const]] play_trs80_level = 5
+--[[const]] setup_boss_fight = 6
+--[[const]] play_boss_fight = 7
+--[[const]] setup_game_over = 8
+--[[const]] game_over_state = 9
 
 -- game state:
-game_state = setup_intro_level
+game_state = setup_game_over
 
 music(0)
---[[const]] cam_x = 0
---[[const]] cam_y = 0
+cam_x = 0
+cam_y = 0
 
 last = 0
 msg_color = 1
@@ -134,13 +134,6 @@ end
 function advance_game_state()
   reset_colors()
   delete_all_actors()
-  if (game_state == play_intro_level) then
-    explain_aibits = make_window()
-    explain_aibits.message = "collect aibits to power your super computer"
-
-    explain_tsnow = make_window()
-    explain_tsnow.message = "collect thundersnow to boost your attack power"
-  end
   game_state += 1
   log("update state -- game_state: "..game_state)
 end
@@ -148,6 +141,7 @@ end
 player_initialized = 0
 
 function _update()
+-- deal with all windows before moving on with the game
   if #windows > 0 then
     handle_window(windows[1])
     return
@@ -161,6 +155,11 @@ function _update()
   elseif (game_state == play_intro_level) then
     if(jon.x > 13 and jon.y < 3) then
       advance_game_state()
+      explain_aibits = make_window()
+      explain_aibits.message = "collect aibits to power your super computer"
+
+      explain_tsnow = make_window()
+      explain_tsnow.message = "collect thundersnow to boost your attack power and speed!"
     end
     standard_update()
   elseif (game_state == setup_open_level) then
@@ -178,6 +177,16 @@ function _update()
     end
   elseif (game_state == play_trs80_level) then
     standard_update()
+  elseif (game_state == setup_boss_fight) then
+    advance_game_state()
+    init_boss_fight()
+  elseif (game_state == play_boss_fight) then
+    standard_update()
+    update_boss_fight()
+  elseif (game_state == setup_game_over) then
+    advance_game_state()
+    init_game_over()
+  elseif (game_state == game_over_state) then
   end
 end
 
@@ -196,6 +205,19 @@ function _draw()
     camera(cam_x^1.5, cam_y^1.5)
 
     map(0, 0, 0, 0, 128, 128)
+  elseif (game_state == play_boss_fight) then
+    camera(0, 0)
+
+    map(0, 0, 0, 0, 16, 16)
+  elseif (game_state == game_over_state) then
+    print("game over - press start",15,64, msg_color)
+    draw_windows()
+    if (time() % 4 == 0) then
+      message()
+      check_for_message()
+      pal(11, msg_color)
+    end
+    return
   end
 
   -- draw actors
@@ -205,7 +227,6 @@ function _draw()
   camera() -- resets camera postion to static so we can draw game info
   print_debug()
   draw_game_info()
-  -- message("game_state: "..game_state)
   check_for_message()
   draw_windows()
   if(time() - last_hit > .2 and time() - last_pickup > .2) reset_colors()
@@ -228,7 +249,40 @@ function standard_update()
   if (jon.aibits >= ai_bits_til_boss) unlock_trs80()
 end
 
+function init_boss_fight()
+  mapsize = 15
+end
+
+function update_boss_fight()
+  if (time() % 2 == 0) insert_actor(spidy_id)
+
+  if (spidys_killed_boss_fight > spidys_to_beat_boss) then
+    advance_game_state()
+  end
+end
+
+function init_game_over()
+    delete_all_actors()
+    music(20)
+    game_over = make_window()
+    spidy_stats = make_window()
+    tsnow_stats = make_window()
+    lady_stats = make_window()
+    cash_stats = make_window()
+    shameless_plug = make_window()
+
+    game_over.message = "        game over."
+    spidy_stats.message = " total spidys killed: "..spidys_killed+spidys_killed_boss_fight
+    cash_stats.message = " cash earned: $"..jon.cash
+    tsnow_stats.message = " thundersnow consumed: "..total_tsnow_collected
+    lady_stats.message = " strippers befriended: "..jon.bandolier
+    shameless_plug.message = " thanks for playing!!!  code can be found here: github.com/  dfirebaugh/j46k"
+end
+
 function init_intro_level()
+  starting_window = make_window()
+  starting_window.message = "Jon, you hate spiders.  Good thing these nice strippers have agreed to help you."
+
   draw_small_room()
   place_lady(5, 5)
   place_lady(5, 10)
@@ -682,6 +736,7 @@ function handle_trs80_collision(a, trs80_actor)
 function deletetrs80()
   delete_actor(trs80_actor)
   music(12)
+  advance_game_state()
 end
 
   if(trs80_actor.actor_id == trs80_id) then
@@ -694,7 +749,6 @@ end
     end
   end
 end
-
 
 function handle_ai_bit_collision(a, aibit_actor)
   if(aibit_actor.actor_id == aibit_id) then
@@ -723,6 +777,7 @@ function handle_tsnow_collision(a, a2)
           100 or (jon.thunder_power + 10)
         jon.cash -= 10
 
+        total_tsnow_collected += 1
         message("picked up some thunder snow!")
       end
 
@@ -753,11 +808,22 @@ function handle_spidy_collision(a, spidy)
       end
 
       if (spidy.health < 0) then
+
+        count_spidy()
+
         local drop_rnd = rnd(100) + 1
 
         if (drop_rnd < 75) then
-          place_aibit(spidy.x, spidy.y)
-          message("spidy dropped an aibit")
+          if (game_state > setup_boss_fight) then
+            place_tsnow(spidy.x, spidy.y)
+            message("spidy dropped a thundersnow")
+          elseif (jon.aibits < ai_bits_til_boss) then
+            place_aibit(spidy.x, spidy.y)
+            message("spidy dropped an aibit")
+          else
+            place_tsnow(spidy.x, spidy.y)
+            message("spidy dropped a thundersnow")
+          end
         elseif (drop_rnd >= 75 and drop_rnd < 85) then
           place_lady(spidy.x, spidy.y)
           message("spidy dropped a stripper")
@@ -978,9 +1044,6 @@ end
 function init_player()
   if (player_initialized == 1) return
   player_initialized = 1
-
-  starting_window = make_window()
-  starting_window.message = "Jon, you hate spiders.  Good thing these nice ladies have agreed to help you."
 
   -- jon
   jon = {}
@@ -1272,6 +1335,23 @@ function handle_window(w)
   end
 end
 
+-- stats
+
+spidys_killed = 0
+spidys_killed_boss_fight = 0
+total_tsnow_collected = 0
+
+function count_spidy(level)
+  if (game_state > setup_boss_fight) then
+    spidys_killed_boss_fight += 1
+  else
+    spidys_killed += 1
+  end
+end
+
+function count_tsnow()
+  total_tsnow_collected += 1
+end
 
 __gfx__
 111111ddd11111ddd11111dd111111dd000a0a00000808000000000066066665dddddddddddddddd511111150000000000000000000000000000000000000000
@@ -1460,10 +1540,10 @@ __sfx__
 001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+011000001f030000000000000000180300000000000000001c030000000000000000130300000000000000001f030000000000000000180300000000000000001f03000000000000000021030000000000000000
+011000001d1440000400004000040000400004000040000400004000040000400004000040000400004000041c144000040000400004000040000400004000040000400004000040000400004000040000400004
+011000001a1440000400004000040000400004000040000400004000040000400004000040000400004000041f144000040000400004000040000400004000040000400004000040000400004000040000400004
+011000001f5211f52113521135211c5211c5211c5211c52117520175211752117521005010050100501005011f5201f5211f5211f5211a5211a5211a5211a5211552115521155211552100501005010050100000
 001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
@@ -1523,4 +1603,13 @@ __music__
 01 080b094a
 01 080b094a
 02 080b090a
+00 41424344
+00 41424344
+01 14554344
+00 14154344
+00 14164344
+00 14151744
+00 14161744
+00 14151744
+02 14161744
 
