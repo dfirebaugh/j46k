@@ -4,101 +4,102 @@ __lua__
 -- j46k
 -- by dfire
 
-debug = 0
+--[[const]] debug = 0
 
 -- additional_direction_tries_max is used in map generation
 --   it represents how many attempts to make whilst
 --   moving toward center
-additional_direction_tries_max = 10
+--[[const]] additional_direction_tries_max = 10
 
-mapsize = 48
-startx = 1
-starty = 1
-wall=7
-floor=9
-sfx_enabled=0
+--[[const]] mapsize = 48
+--[[const]] startx = 1
+--[[const]] starty = 1
+--[[const]] wall=7
+--[[const]] floor=9
+--[[const]] sfx_enabled=0
 
 -- spawn chances
 --   note: adding too many assests will cause lag
-lady_spawn_number = 1
-spidy_spawn_number = 5
-tsnow_spawn_number = 8
-aibit_spawn_number = 3
+--[[const]] lady_spawn_number = 1
+--[[const]] spidy_spawn_number = 5
+--[[const]] tsnow_spawn_number = 8
+--[[const]] aibit_spawn_number = 3
 
 -- sprites
-tsnow_sprite = 32
-lady_sprite = 48
-spidy_sprite = 36
-aibit_sprite = 20
-portal_sprite = 10
-trs80_sprite = 24
+--[[const]] tsnow_sprite = 32
+--[[const]] lady_sprite = 48
+--[[const]] spidy_sprite = 36
+--[[const]] aibit_sprite = 20
+--[[const]] portal_sprite = 10
+--[[const]] trs80_sprite = 24
 
 -- actor ids:
-player_id = 0
-lady_id = 1
-tsnow_id = 2
-aibit_id = 3
-spidy_id = 4
-trs80_id = 5
+--[[const]] player_id = 0
+--[[const]] lady_id = 1
+--[[const]] tsnow_id = 2
+--[[const]] aibit_id = 3
+--[[const]] spidy_id = 4
+--[[const]] trs80_id = 5
 
 -- how many aibits till we can get to the boss
-ai_bits_til_boss = 10
+--[[const]] ai_bits_til_boss = 10
 
-lady_attack_modifier = 20
-launch_speed = 1.8
-lady_inertia = .8
-lady_inertia_cap = 1
-lady_inertia_inc = 0--.08
-lady_bounce = 1
-lady_speed = 1
-lady_return_rate = .2
+--[[const]] lady_attack_modifier = 20
+--[[const]] launch_speed = 1.8
+--[[const]] lady_inertia = .8
+--[[const]] lady_inertia_cap = 1
+--[[const]] lady_inertia_inc = 0--.08
+--[[const]] lady_bounce = 1
+--[[const]] lady_speed = 1
+--[[const]] lady_return_rate = .2
 
-spidy_follow_rate = .01
-spidy_aggro_distance = 5
+--[[const]] spidy_follow_rate = .01
+--[[const]] spidy_aggro_distance = 5
 
-jon_sprite = 0
-jon_attack_modifier = 1
-thunder_power_attack_modifier = 1
+--[[const]] jon_sprite = 0
+--[[const]] jon_attack_modifier = 1
+--[[const]] thunder_power_attack_modifier = 1
+
 -- how fast to accelerate
-jon_accel_rate = 0.1
-jon_accel = 0.125
-thunder_snow_accel_multiplier = 40
-jon_initial_speed = .07
-jon_accel_upper_limit = .15
+--[[const]] jon_accel_rate = 0.1
+--[[const]] jon_accel = 0.125
+--[[const]] thunder_snow_accel_multiplier = 40
+--[[const]] jon_initial_speed = .07
+--[[const]] jon_accel_upper_limit = .15
 
 -- tsnow_increment is how much
 --  it will increase jon's thunderpower
-tsnow_increment = 10
-spidy_health = 100
+--[[const]] tsnow_increment = 10
+--[[const]] spidy_health = 100
 
-left = 0
-left_up = 1
-left_down = 2
-right = 3
-right_up = 4
-right_down = 5
-up = 6
-down = 7
+--[[const]] left = 0
+--[[const]] left_up = 1
+--[[const]] left_down = 2
+--[[const]] right = 3
+--[[const]] right_up = 4
+--[[const]] right_down = 5
+--[[const]] up = 6
+--[[const]] down = 7
 
 -- game_states:
-setup_intro_level = 0
-play_intro_level = 1
-setup_open_level = 2
-play_open_level = 3
-setup_trs80_level = 4
-play_trs80_level = 5
+--[[const]] setup_intro_level = 0
+--[[const]] play_intro_level = 1
+--[[const]] setup_open_level = 2
+--[[const]] play_open_level = 3
+--[[const]] setup_trs80_level = 4
+--[[const]] play_trs80_level = 5
 
 -- game state:
 game_state = setup_intro_level
 
 music(0)
-cam_x = 0
-cam_y = 0
+--[[const]] cam_x = 0
+--[[const]] cam_y = 0
 
 last = 0
-msg_color = 1
+--[[const]] msg_color = 1
 
-line_char_count = 24
+--[[const]] line_char_count = 24
 
 -- clear the log
 printh("", "log", true)
@@ -1249,14 +1250,14 @@ end
 
 
 __gfx__
-111111ddd11111ddd11111dd111111dd00000000000000000000000066066666dddddddddddddddd511111150000000000000000000000000000000000000000
-1111111111111111111111111111111100000000000000000000000066066666d0dddddddddddddd51eeee150000000000000000000000000000000000000000
-f6ff6fdddf6ff6fddfff6ffdf6ff6fdd00000000000000000000000000600000dddddddddddddddd51eaae150000000000000000000000000000000000000000
-ffffffdddffffffddffffffdffffffdd00000000000000000000000066666066dddddddddddddddd51eaae150000000000000000000000000000000000000000
-dcccddddddcccdddddcccddddcccdddd00000000000000000000000065666066dddddddddddddddd51eaae150000000000000000000000000000000000000000
-d111dddddd111ddddd1111ddd111dddd00000000000000000000000000000000dddddddddddddddd51eaae150000000000000000000000000000000000000000
-d1d1dddd011d110d011dd1dd11d1dddd00000000000000000000000066566656dddddd7ddddddddd51eeee150000000000000000000000000000000000000000
-00d00ddd0ddddd0d0dddd00dddd00ddd00000000000000000000000066666666ddddddd7dddddddd511111150000000000000000000000000000000000000000
+111111ddd11111ddd11111dd111111dd000a0a00000808000000000066066666dddddddddddddddd511111150000000000000000000000000000000000000000
+11111111111111111111111111111111aaaaaaaa888888880000000066066666d0dddddddddddddd51eeee150000000000000000000000000000000000000000
+f6ff6fdddf6ff6fddfff6ffdf6ff6fdda00a0a00800808000000000000600000dddddddddddddddd51eaae150000000000000000000000000000000000000000
+ffffffdddffffffddffffffdffffffddaaaaaaaa888888880000000066666066dddddddddddddddd51eaae150000000000000000000000000000000000000000
+dcccddddddcccdddddcccddddcccdddd000a0a0a000808080000000065666066dddddddddddddddd51eaae150000000000000000000000000000000000000000
+d111dddddd111ddddd1111ddd111dddd000a0a0a000808080000000000000000dddddddddddddddd51eaae150000000000000000000000000000000000000000
+d1d1dddd011d110d011dd1dd11d1ddddaaaaaaaa888888880000000066566656dddddd7ddddddddd51eeee150000000000000000000000000000000000000000
+00d00ddd0ddddd0d0dddd00dddd00ddd000a0a00000808000000000066666666ddddddd7dddddddd511111150000000000000000000000000000000000000000
 dddddddddddddddddddddddd00000000dddddddddddddddddddddddd00000000ddd555555555555500000000000000008888888888888888bbbbbbbbbbbbbbbb
 d88d88ddd88d88ddd88d88dd000000006d6d6d6d6d6d6d6d6d6d6d6d00000000dd5566666666666500000000000000008888888888888888bbbbbbbbbbbbbbbb
 8888878d8888878d8888878d00000000bbbbbbbbbbbbbbbbbbbbbbbb00000000dd5600000006555500000000000000008888888888888888bbbbbbbbbbbbbbbb
