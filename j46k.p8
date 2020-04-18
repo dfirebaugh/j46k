@@ -6,6 +6,8 @@ __lua__
 
 --[[const]] debug = 0
 
+--[[const]] jonny_cash_enabled = 0
+
 -- additional_direction_tries_max is used in map generation
 --   it represents how many attempts to make whilst
 --   moving toward center
@@ -53,8 +55,8 @@ __lua__
 --[[const]] lady_speed = 1
 --[[const]] lady_return_rate = .2
 
---[[const]] spidy_follow_rate = .01
---[[const]] spidy_aggro_distance = 5
+--[[const]] spidy_follow_rate = .03
+--[[const]] spidy_aggro_distance = 15
 
 --[[const]] jon_sprite = 0
 --[[const]] jon_attack_modifier = 1
@@ -64,7 +66,7 @@ __lua__
 --[[const]] jon_accel_rate = 0.1
 --[[const]] jon_accel = 0.125
 --[[const]] thunder_snow_accel_multiplier = 40
---[[const]] jon_initial_speed = .07
+--[[const]] jon_initial_speed = .08
 --[[const]] jon_accel_upper_limit = .15
 
 -- tsnow_increment is how much
@@ -97,7 +99,7 @@ music(0)
 --[[const]] cam_y = 0
 
 last = 0
---[[const]] msg_color = 1
+msg_color = 1
 
 --[[const]] line_char_count = 24
 
@@ -146,8 +148,6 @@ end
 player_initialized = 0
 
 function _update()
-  if(time() - last_hit > .2 and time() - last_pickup > .2) reset_colors()
-
   if #windows > 0 then
     handle_window(windows[1])
     return
@@ -167,7 +167,7 @@ function _update()
     advance_game_state()
     init_open_level()
   elseif (game_state == play_open_level) then
-    pal(13, 5)
+    if (alt_open_level == 1) pal(13, 5)
     standard_update()
   elseif (game_state == play_open_level+1) then
     if (jon.aibits < ai_bits_til_boss) then
@@ -208,6 +208,7 @@ function _draw()
   -- message("game_state: "..game_state)
   check_for_message()
   draw_windows()
+  if(time() - last_hit > .2 and time() - last_pickup > .2) reset_colors()
 end
 
 function print_debug()
@@ -223,9 +224,6 @@ function standard_update()
   update_player()
   move_actor(jon)
   foreach(actor, move_actor)
-  if time() % 2 == 0 then
-    payday()
-  end 
 
   if (jon.aibits >= ai_bits_til_boss) unlock_trs80()
 end
@@ -242,7 +240,9 @@ function init_intro_level()
   mset(14, 1, portal_sprite)
 end
 
+alt_open_level = 0
 function init_open_level()
+  alt_open_level = alt_open_level == 1 and 0 or 1
   -- draw a room
   for i = 0, mapsize do
     for j = 0, mapsize do
@@ -721,6 +721,7 @@ function handle_tsnow_collision(a, a2)
         -- cap thunderpower at 100
         jon.thunder_power = (jon.thunder_power+tsnow_increment > 100) and 
           100 or (jon.thunder_power + 10)
+        jon.cash -= 10
 
         message("picked up some thunder snow!")
       end
@@ -744,7 +745,7 @@ function handle_spidy_collision(a, spidy)
         message(jon_attack_modifier + (jon.thunder_power + thunder_power_attack_modifier).." dmg to spidy. lost: aibit")
         if (jon.aibits > 0) then
           jon.aibits -= 1
-          jon.thunder_power -= 20
+          jon.thunder_power -= 10
           if (jon.thunder_power < 0) then
             jon.thunder_power = 0
           end
@@ -1015,15 +1016,38 @@ function payday()
   jon.cash += 10
 end
 
+function sober_up()
+  if jon.thunder_power > 2 then
+    jon.thunder_power -= 1
+  end
+end
+
+function jonny_cash_mode()
+    pal(15, 7)
+    -- pal(0, 5)
+    pal(1, 0)
+    pal(12, 0)
+    jon_accel = jon_accel_upper_limit
+end
+
 function update_player()
--- todo: fix jon's acceleration
-  -- if (jon_accel > jon_accel_upper_limit) then
-  --   jon_accel = jon_accel_upper_limit
-  -- elseif (jon_accel < jon_accel_upper_limit and jon.thunder_power > 20) then
-  --   jon_accel = jon_accel_rate * (jon.thunder_power / thunder_snow_accel_multiplier)
-  -- else
-  --   jon_accel = jon_initial_speed
-  -- end
+  if time() % 2 == 0 then
+    payday()
+    sober_up()
+  end
+
+  if (jonny_cash_enabled == 1) then
+    jonny_cash_mode()
+  elseif jon.thunder_power > 65 then
+    jonny_cash_mode()
+  elseif jon.thunder_power > 45 then
+    jon_accel = jon_initial_speed + (jon_initial_speed/2)
+  elseif jon.thunder_power > 25 then
+    jon_accel = jon_initial_speed + (jon_initial_speed/3)
+  else
+    jon_accel = jon_initial_speed
+  end
+
   -- message("jon accel: "..jon_accel)
 end
 
@@ -1250,14 +1274,14 @@ end
 
 
 __gfx__
-111111ddd11111ddd11111dd111111dd000a0a00000808000000000066066666dddddddddddddddd511111150000000000000000000000000000000000000000
-11111111111111111111111111111111aaaaaaaa888888880000000066066666d0dddddddddddddd51eeee150000000000000000000000000000000000000000
+111111ddd11111ddd11111dd111111dd000a0a00000808000000000066066665dddddddddddddddd511111150000000000000000000000000000000000000000
+11111111111111111111111111111111aaaaaaaa888888880000000065066555d0dddddddddddddd51eeee150000000000000000000000000000000000000000
 f6ff6fdddf6ff6fddfff6ffdf6ff6fdda00a0a00800808000000000000600000dddddddddddddddd51eaae150000000000000000000000000000000000000000
 ffffffdddffffffddffffffdffffffddaaaaaaaa888888880000000066666066dddddddddddddddd51eaae150000000000000000000000000000000000000000
-dcccddddddcccdddddcccddddcccdddd000a0a0a000808080000000065666066dddddddddddddddd51eaae150000000000000000000000000000000000000000
+dcccddddddcccdddddcccddddcccdddd000a0a0a000808080000000065655055dddddddddddddddd51eaae150000000000000000000000000000000000000000
 d111dddddd111ddddd1111ddd111dddd000a0a0a000808080000000000000000dddddddddddddddd51eaae150000000000000000000000000000000000000000
-d1d1dddd011d110d011dd1dd11d1ddddaaaaaaaa888888880000000066566656dddddd7ddddddddd51eeee150000000000000000000000000000000000000000
-00d00ddd0ddddd0d0dddd00dddd00ddd000a0a00000808000000000066666666ddddddd7dddddddd511111150000000000000000000000000000000000000000
+d1d1dddd011d110d011dd1dd11d1ddddaaaaaaaa888888880000000066666666dddddd7ddddddddd51eeee150000000000000000000000000000000000000000
+00d00ddd0ddddd0d0dddd00dddd00ddd000a0a00000808000000000055665500ddddddd7dddddddd511111150000000000000000000000000000000000000000
 dddddddddddddddddddddddd00000000dddddddddddddddddddddddd00000000ddd555555555555500000000000000008888888888888888bbbbbbbbbbbbbbbb
 d88d88ddd88d88ddd88d88dd000000006d6d6d6d6d6d6d6d6d6d6d6d00000000dd5566666666666500000000000000008888888888888888bbbbbbbbbbbbbbbb
 8888878d8888878d8888878d00000000bbbbbbbbbbbbbbbbbbbbbbbb00000000dd5600000006555500000000000000008888888888888888bbbbbbbbbbbbbbbb
