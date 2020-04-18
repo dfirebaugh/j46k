@@ -92,7 +92,7 @@ __lua__
 --[[const]] game_over_state = 9
 
 -- game state:
-game_state = setup_game_over
+game_state = setup_intro_level
 
 music(0)
 cam_x = 0
